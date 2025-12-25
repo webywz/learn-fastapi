@@ -9,7 +9,9 @@
       "Bash(alembic history:*)",
       "Bash(mkdir:*)",
       "Bash(touch:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(dir:*)"
     ]
   }
 }

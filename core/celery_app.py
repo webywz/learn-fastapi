@@ -71,142 +71,111 @@ celery_app.conf.update(
     # 任务配置
     # =========================================
 
+    # 任务序列化格式
+    # 支持的格式: json, pickle, yaml, msgpack
+    # 推荐 json（安全、兼容性好）
     task_serializer="json",
-    """
-    任务序列化格式
 
-    支持的格式: json, pickle, yaml, msgpack
-    推荐 json（安全、兼容性好）
-    """
-
+    # 接受的内容类型
+    # 安全起见，只接受 json
     accept_content=["json"],
-    """
-    接受的内容类型
 
-    安全起见，只接受 json
-    """
-
+    # 结果序列化格式
     result_serializer="json",
-    """结果序列化格式"""
 
+    # 时区设置
+    # 影响定时任务的执行时间
     timezone="Asia/Shanghai",
-    """
-    时区设置
 
-    影响定时任务的执行时间
-    """
-
+    # 是否使用 UTC 时间
+    # False: 使用本地时区
+    # True: 使用 UTC（如果服务器在国外）
     enable_utc=False,
-    """
-    是否使用 UTC 时间
-
-    False: 使用本地时区
-    True: 使用 UTC（如果服务器在国外）
-    """
 
     # =========================================
     # 任务执行配置
     # =========================================
 
+    # 任务确认时机
+    # True: 任务执行完成后确认（推荐）
+    # False: 任务接收后立即确认
+    # 好处：
+    # - 任务执行失败不会丢失
+    # - Worker 崩溃后任务可以重新执行
     task_acks_late=True,
-    """
-    任务确认时机
 
-    True: 任务执行完成后确认（推荐）
-    False: 任务接收后立即确认
-
-    好处：
-    - 任务执行失败不会丢失
-    - Worker 崩溃后任务可以重新执行
-    """
-
+    # Worker 丢失时是否拒绝任务
+    # True: Worker 异常退出时，任务重新入队
+    # False: 任务丢失
     task_reject_on_worker_lost=True,
-    """
-    Worker 丢失时是否拒绝任务
 
-    True: Worker 异常退出时，任务重新入队
-    False: 任务丢失
-    """
-
+    # Worker 预取任务数量
+    # 1: 每次只取 1 个任务（公平分配）
+    # 4: 每次取 4 个任务（提高吞吐量）
+    # 建议：
+    # - 长任务: 1（避免阻塞）
+    # - 短任务: 4-8（提高效率）
     worker_prefetch_multiplier=1,
-    """
-    Worker 预取任务数量
 
-    1: 每次只取 1 个任务（公平分配）
-    4: 每次取 4 个任务（提高吞吐量）
-
-    建议：
-    - 长任务: 1（避免阻塞）
-    - 短任务: 4-8（提高效率）
-    """
-
+    # 任务执行超时时间（秒）
+    # 超过此时间，任务被强制终止
+    # 3600 秒 = 1 小时
+    # 防止任务卡死占用 Worker
     task_time_limit=3600,
-    """
-    任务执行超时时间（秒）
 
-    超过此时间，任务被强制终止
-    3600 秒 = 1 小时
-
-    防止任务卡死占用 Worker
-    """
-
+    # 任务软超时时间（秒）
+    # 超过此时间，抛出 SoftTimeLimitExceeded 异常
+    # 给任务一个清理的机会
+    # 3000 秒 = 50 分钟
     task_soft_time_limit=3000,
-    """
-    任务软超时时间（秒）
-
-    超过此时间，抛出 SoftTimeLimitExceeded 异常
-    给任务一个清理的机会
-
-    3000 秒 = 50 分钟
-    """
 
     # =========================================
     # 结果配置
     # =========================================
 
+    # 任务结果过期时间（秒）
+    # 结果在 Redis 中保留的时间
+    # 3600 秒 = 1 小时
+    # 过期后自动删除（节省内存）
     result_expires=3600,
-    """
-    任务结果过期时间（秒）
 
-    结果在 Redis 中保留的时间
-    3600 秒 = 1 小时
-
-    过期后自动删除（节省内存）
-    """
-
+    # 结果后端传输选项（Redis 哨兵模式用）
     result_backend_transport_options={
         "master_name": "mymaster",
     },
-    """结果后端传输选项（Redis 哨兵模式用）"""
 
     # =========================================
     # 路由配置（高级）
     # =========================================
 
+    # 任务路由配置
+    # 将不同类型的任务分配到不同的队列
+    # 好处：
+    # - 优先级控制（重要任务优先）
+    # - 资源隔离（邮件任务不影响报表）
+    # - 独立扩展（邮件 Worker 独立扩展）
+    # 使用：
+    # celery -A core.celery_app worker -Q email  # 只处理邮件队列
+    # celery -A core.celery_app worker -Q report # 只处理报表队列
     task_routes={
         "tasks.email_tasks.*": {"queue": "email"},
         "tasks.report_tasks.*": {"queue": "report"},
         "tasks.cleanup_tasks.*": {"queue": "cleanup"},
     },
-    """
-    任务路由配置
-
-    将不同类型的任务分配到不同的队列
-
-    好处：
-    - 优先级控制（重要任务优先）
-    - 资源隔离（邮件任务不影响报表）
-    - 独立扩展（邮件 Worker 独立扩展）
-
-    使用：
-    celery -A core.celery_app worker -Q email  # 只处理邮件队列
-    celery -A core.celery_app worker -Q report # 只处理报表队列
-    """
 
     # =========================================
     # 定时任务配置
     # =========================================
 
+    # 定时任务配置（Beat Schedule）
+    # 定时任务类似 Linux 的 cron
+    # schedule 格式:
+    # - crontab(hour=2, minute=0)  # 每天 2:00
+    # - crontab(hour=0, minute=0, day_of_week=1)  # 每周一 0:00
+    # - crontab(minute="*/15")  # 每 15 分钟
+    # - 600.0  # 每 600 秒
+    # 需要启动 Beat 进程：
+    # celery -A core.celery_app beat
     beat_schedule={
         # 每天凌晨 2 点清理过期数据
         "cleanup-expired-data": {
@@ -226,20 +195,6 @@ celery_app.conf.update(
             "schedule": 600.0,  # 600 秒 = 10 分钟
         },
     },
-    """
-    定时任务配置（Beat Schedule）
-
-    定时任务类似 Linux 的 cron
-
-    schedule 格式:
-    - crontab(hour=2, minute=0)  # 每天 2:00
-    - crontab(hour=0, minute=0, day_of_week=1)  # 每周一 0:00
-    - crontab(minute="*/15")  # 每 15 分钟
-    - 600.0  # 每 600 秒
-
-    需要启动 Beat 进程：
-    celery -A core.celery_app beat
-    """
 )
 
 
