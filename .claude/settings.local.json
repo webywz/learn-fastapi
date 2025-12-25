@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(alembic init:*)",
+      "Bash(alembic revision:*)",
+      "Bash(ls:*)",
+      "Bash(alembic upgrade:*)",
+      "Bash(alembic current:*)",
+      "Bash(alembic history:*)",
+      "Bash(mkdir:*)",
+      "Bash(touch:*)"
+    ]
+  }
+}
