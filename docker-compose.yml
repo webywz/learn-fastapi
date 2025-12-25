@@ -1,0 +1,307 @@
+# ============================================================
+# Docker Compose 配置文件
+# ============================================================
+#
+# 作用：
+#   编排多个容器，一键启动整个应用
+#
+# 包含服务：
+#   - app: FastAPI 应用
+#   - redis: Redis 缓存和消息队列
+#   - celery_worker: Celery 任务执行器
+#   - celery_beat: Celery 定时任务调度器
+#   - flower: Celery 监控界面
+#   - nginx: 反向代理服务器
+#
+# 启动命令：
+#   docker-compose up -d
+#
+# 停止命令：
+#   docker-compose down
+
+version: '3.8'
+
+# ============================================================
+# 服务定义
+# ============================================================
+
+services:
+  # ----------------------------------------------------------
+  # Redis 服务
+  # ----------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: fastapi_redis
+    command: redis-server --requirepass root
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - app_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "root", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ----------------------------------------------------------
+  # FastAPI 应用
+  # ----------------------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fastapi_app
+    ports:
+      - "8080:8080"
+    volumes:
+      # 挂载代码（开发环境）
+      - .:/app
+      # 挂载数据库文件
+      - ./data:/app/data
+    environment:
+      # 应用配置
+      - APP_NAME=FastAPI Backend Tutorial
+      - DEBUG=False
+      - ENVIRONMENT=production
+
+      # 数据库配置
+      - DATABASE_URL=sqlite+aiosqlite:///./data/app.db
+
+      # Redis 配置
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=root
+      - REDIS_DB=0
+
+      # JWT 配置
+      - SECRET_KEY=your-secret-key-change-in-production
+      - ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=1440
+
+      # Celery 配置
+      - CELERY_BROKER_URL=redis://:root@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:root@redis:6379/0
+    depends_on:
+      - redis
+    networks:
+      - app_network
+    restart: unless-stopped
+    command: uvicorn main:app --host 0.0.0.0 --port 8080
+
+  # ----------------------------------------------------------
+  # Celery Worker（任务执行器）
+  # ----------------------------------------------------------
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fastapi_celery_worker
+    volumes:
+      - .:/app
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=root
+      - CELERY_BROKER_URL=redis://:root@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:root@redis:6379/0
+    depends_on:
+      - redis
+      - app
+    networks:
+      - app_network
+    restart: unless-stopped
+    command: celery -A core.celery_app worker --loglevel=info
+
+  # ----------------------------------------------------------
+  # Celery Beat（定时任务调度器）
+  # ----------------------------------------------------------
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fastapi_celery_beat
+    volumes:
+      - .:/app
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=root
+      - CELERY_BROKER_URL=redis://:root@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:root@redis:6379/0
+    depends_on:
+      - redis
+      - app
+    networks:
+      - app_network
+    restart: unless-stopped
+    command: celery -A core.celery_app beat --loglevel=info
+
+  # ----------------------------------------------------------
+  # Flower（Celery 监控界面）
+  # ----------------------------------------------------------
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fastapi_flower
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://:root@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:root@redis:6379/0
+    depends_on:
+      - redis
+      - celery_worker
+    networks:
+      - app_network
+    restart: unless-stopped
+    command: celery -A core.celery_app flower --port=5555
+
+  # ----------------------------------------------------------
+  # Nginx（反向代理）
+  # ----------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: fastapi_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - app
+    networks:
+      - app_network
+    restart: unless-stopped
+
+# ============================================================
+# 网络配置
+# ============================================================
+
+networks:
+  app_network:
+    driver: bridge
+    name: fastapi_network
+
+# ============================================================
+# 数据卷配置
+# ============================================================
+
+volumes:
+  redis_data:
+    name: fastapi_redis_data
+
+
+# ============================================================
+# 学习笔记
+# ============================================================
+
+# 1. 【常用命令】
+#
+#    # 启动所有服务
+#    docker-compose up -d
+#
+#    # 查看运行状态
+#    docker-compose ps
+#
+#    # 查看日志
+#    docker-compose logs -f
+#    docker-compose logs -f app  # 查看单个服务
+#
+#    # 停止所有服务
+#    docker-compose down
+#
+#    # 停止并删除数据卷
+#    docker-compose down -v
+#
+#    # 重启服务
+#    docker-compose restart app
+#
+#    # 重新构建
+#    docker-compose up -d --build
+#
+#    # 进入容器
+#    docker-compose exec app bash
+#
+#    # 查看资源使用
+#    docker-compose stats
+
+# 2. 【服务说明】
+#
+#    app:
+#    - FastAPI 应用主服务
+#    - 端口: 8080
+#    - 依赖: redis
+#
+#    redis:
+#    - 缓存和消息队列
+#    - 端口: 6379
+#    - 密码: root
+#
+#    celery_worker:
+#    - 执行异步任务
+#    - 依赖: redis, app
+#
+#    celery_beat:
+#    - 定时任务调度
+#    - 依赖: redis, app
+#
+#    flower:
+#    - Celery 监控界面
+#    - 端口: 5555
+#    - 访问: http://localhost:5555
+#
+#    nginx:
+#    - 反向代理
+#    - 端口: 80, 443
+#    - 配置文件: nginx/nginx.conf
+
+# 3. 【网络配置】
+#
+#    所有服务在同一个网络（app_network）中
+#    服务之间可以通过服务名互相访问
+#
+#    例如：
+#    - app 访问 redis: redis://redis:6379
+#    - nginx 访问 app: http://app:8080
+
+# 4. 【数据持久化】
+#
+#    redis_data: Redis 数据
+#    ./data: 数据库文件（SQLite）
+
+# 5. 【环境变量】
+#
+#    方式1: 在 docker-compose.yml 中直接定义（当前）
+#    方式2: 使用 .env 文件
+#    方式3: 使用 env_file 参数
+
+# 6. 【健康检查】
+#
+#    Redis 配置了健康检查
+#    其他服务可以添加类似配置
+#
+#    healthcheck:
+#      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 3
+
+# 7. 【开发 vs 生产】
+#
+#    开发环境:
+#    - 挂载代码目录（volumes: - .:/app）
+#    - DEBUG=True
+#    - 热重载
+#
+#    生产环境:
+#    - 不挂载代码目录
+#    - DEBUG=False
+#    - 使用环境变量文件
+#    - 配置 SSL
+#    - 限制资源使用

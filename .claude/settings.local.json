@@ -8,7 +8,8 @@
       "Bash(alembic current:*)",
       "Bash(alembic history:*)",
       "Bash(mkdir:*)",
-      "Bash(touch:*)"
+      "Bash(touch:*)",
+      "Bash(git add:*)"
     ]
   }
 }
