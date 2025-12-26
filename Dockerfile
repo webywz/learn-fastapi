@@ -46,18 +46,17 @@ RUN pip install --user -r requirements.txt
 # ============================================================
 FROM base as final
 
-# 从 builder 阶段复制已安装的包
-COPY --from=builder /root/.local /root/.local
+# 创建非 root 用户（安全性）
+RUN useradd -m -u 1000 appuser
+
+# 从 builder 阶段复制已安装的包到 appuser 的目录下，并修改权限
+COPY --from=builder --chown=appuser:appuser /root/.local /home/appuser/.local
 
 # 将 .local/bin 添加到 PATH
-ENV PATH=/root/.local/bin:$PATH
+ENV PATH=/home/appuser/.local/bin:$PATH
 
-# 复制应用代码
-COPY . .
-
-# 创建非 root 用户（安全性）
-RUN useradd -m -u 1000 appuser && \
-    chown -R appuser:appuser /app
+# 复制应用代码，并修改权限
+COPY --chown=appuser:appuser . .
 
 # 切换到非 root 用户
 USER appuser
