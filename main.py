@@ -24,7 +24,7 @@ from core.redis import get_redis, close_redis
 from utils.logger import setup_logging, get_logger
 from middleware.logger import log_requests_middleware
 from middleware.error_handler import register_exception_handlers
-from api.v1 import auth, users, tasks
+from api.v1 import auth, users, tasks, files
 
 # 初始化日志
 setup_logging()
@@ -87,6 +87,13 @@ app.include_router(
     tasks.router,
     prefix=f"{settings.API_V1_PREFIX}/tasks",
     tags=["任务"]
+)
+
+# 文件上传路由
+app.include_router(
+    files.router,
+    prefix=f"{settings.API_V1_PREFIX}/files",
+    tags=["文件上传"]
 )
 
 

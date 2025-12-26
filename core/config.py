@@ -362,6 +362,127 @@ class Settings(BaseSettings):
     """每页最大数量（防止用户请求太多数据）"""
 
     # =========================================
+    # 阿里云 OSS 配置
+    # =========================================
+
+    OSS_ENABLED: bool = False
+    """
+    是否启用 OSS 存储
+
+    - True: 文件上传到阿里云 OSS
+    - False: 文件上传到本地磁盘
+
+    环境变量设置: export OSS_ENABLED=True
+    """
+
+    OSS_ACCESS_KEY_ID: Optional[str] = None
+    """
+    阿里云 AccessKey ID
+
+    获取位置: 阿里云控制台 → 头像 → AccessKey 管理
+    ⚠️ 敏感信息，不要提交到代码库
+
+    环境变量设置: export OSS_ACCESS_KEY_ID="LTAI5t..."
+    """
+
+    OSS_ACCESS_KEY_SECRET: Optional[str] = None
+    """
+    阿里云 AccessKey Secret
+
+    ⚠️ 非常敏感，必须保密！
+
+    环境变量设置: export OSS_ACCESS_KEY_SECRET="xxx"
+    """
+
+    OSS_ENDPOINT: str = "oss-cn-beijing.aliyuncs.com"
+    """
+    OSS 地域节点（Endpoint）
+
+    常用节点:
+      - 华北2（北京）: oss-cn-beijing.aliyuncs.com
+      - 华东1（杭州）: oss-cn-hangzhou.aliyuncs.com
+      - 华东2（上海）: oss-cn-shanghai.aliyuncs.com
+      - 华南1（深圳）: oss-cn-shenzhen.aliyuncs.com
+
+    注意: 不要包含 https:// 前缀
+    """
+
+    OSS_BUCKET: str = "ywzstore"
+    """
+    OSS Bucket 名称
+
+    Bucket 是 OSS 中的存储空间
+    需要在阿里云控制台创建
+    """
+
+    OSS_REGION: str = "oss-cn-beijing"
+    """OSS 地域标识"""
+
+    OSS_PATH_PREFIX: str = "uploads/"
+    """
+    OSS 存储路径前缀
+
+    文件会上传到: {OSS_PATH_PREFIX}{filename}
+    例如: uploads/2023/12/26/image.jpg
+    """
+
+    OSS_USE_SSL: bool = True
+    """
+    是否使用 HTTPS
+
+    - True: 使用 HTTPS（推荐）
+    - False: 使用 HTTP
+    """
+
+    OSS_DOMAIN: Optional[str] = None
+    """
+    自定义域名（可选）
+
+    如果你绑定了自定义域名，在这里设置
+    例如: cdn.example.com
+
+    如果不设置，将使用 OSS 默认域名
+    """
+
+    @property
+    def OSS_FULL_ENDPOINT(self) -> str:
+        """
+        完整的 OSS Endpoint URL
+
+        返回: https://ywzstore.oss-cn-beijing.aliyuncs.com
+        或: http://ywzstore.oss-cn-beijing.aliyuncs.com
+        """
+        protocol = "https" if self.OSS_USE_SSL else "http"
+        return f"{protocol}://{self.OSS_BUCKET}.{self.OSS_ENDPOINT}"
+
+    @property
+    def OSS_BASE_URL(self) -> str:
+        """
+        获取文件访问的基础 URL
+
+        如果设置了自定义域名，使用自定义域名
+        否则使用 OSS 默认域名
+        """
+        if self.OSS_DOMAIN:
+            protocol = "https" if self.OSS_USE_SSL else "http"
+            return f"{protocol}://{self.OSS_DOMAIN}"
+        return self.OSS_FULL_ENDPOINT
+
+    # =========================================
+    # 文件上传配置
+    # =========================================
+
+    UPLOAD_DIR: str = "data/uploads"
+    """
+    本地文件上传目录
+
+    当 OSS_ENABLED=False 时使用
+    """
+
+    MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024
+    """文件上传大小限制（字节）- 默认 10 MB"""
+
+    # =========================================
     # Pydantic 配置
     # =========================================
 
