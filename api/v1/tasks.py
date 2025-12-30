@@ -70,7 +70,7 @@ class TaskResponse(BaseModel):
 # 邮件任务 API
 # ============================================================
 
-@router.post("/email/send", tags=["任务-邮件"])
+@router.post("/email/send", tags=["任务-邮件"], summary="发送邮件", description="异步发送邮件，立即返回任务ID，不阻塞API响应")
 async def send_email_api(request: SendEmailRequest):
     """
     发送邮件（异步）
@@ -113,7 +113,7 @@ async def send_email_api(request: SendEmailRequest):
     })
 
 
-@router.post("/email/welcome/{user_id}", tags=["任务-邮件"])
+@router.post("/email/welcome/{user_id}", tags=["任务-邮件"], summary="发送欢迎邮件", description="用户注册成功后发送欢迎邮件")
 async def send_welcome_email_api(
     user_id: int,
     email: EmailStr,
@@ -140,7 +140,7 @@ async def send_welcome_email_api(
     })
 
 
-@router.post("/email/bulk", tags=["任务-邮件"])
+@router.post("/email/bulk", tags=["任务-邮件"], summary="批量发送邮件", description="批量异步发送多封邮件")
 async def send_bulk_emails_api(request: BulkEmailRequest):
     """
     批量发送邮件
@@ -167,7 +167,7 @@ async def send_bulk_emails_api(request: BulkEmailRequest):
 # 报表任务 API
 # ============================================================
 
-@router.post("/report/export-users", tags=["任务-报表"])
+@router.post("/report/export-users", tags=["任务-报表"], summary="导出用户数据", description="异步导出用户数据为CSV文件，上传到OSS并发送下载链接")
 async def export_users_api(
     user_id: int,
     request: ExportRequest
@@ -204,7 +204,7 @@ async def export_users_api(
     })
 
 
-@router.post("/report/generate", tags=["任务-报表"])
+@router.post("/report/generate", tags=["任务-报表"], summary="生成Excel报表", description="根据报表类型和日期范围生成Excel报表")
 async def generate_report_api(
     report_type: str,
     start_date: str,
@@ -237,7 +237,7 @@ async def generate_report_api(
 # 任务状态查询 API
 # ============================================================
 
-@router.get("/status/{task_id}", tags=["任务-查询"])
+@router.get("/status/{task_id}", tags=["任务-查询"], summary="查询任务状态", description="查询任务执行状态、进度和结果")
 async def get_task_status(task_id: str):
     """
     查询任务状态
@@ -318,7 +318,7 @@ async def get_task_status(task_id: str):
     return success(data=response)
 
 
-@router.delete("/cancel/{task_id}", tags=["任务-查询"])
+@router.delete("/cancel/{task_id}", tags=["任务-查询"], summary="取消任务", description="取消正在执行或等待执行的任务")
 async def cancel_task(task_id: str):
     """
     取消任务
@@ -345,7 +345,7 @@ async def cancel_task(task_id: str):
         return error(message=f"无法取消任务，当前状态: {task_result.state}")
 
 
-@router.get("/list", tags=["任务-查询"])
+@router.get("/list", tags=["任务-查询"], summary="列出活跃任务", description="查看当前正在执行和等待执行的任务列表")
 async def list_tasks():
     """
     列出所有活跃任务
