@@ -17,18 +17,26 @@
   - 文件系统操作
 """
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, Query
-from fastapi.responses import FileResponse, StreamingResponse
+from datetime import datetime, timedelta, timezone
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from typing import List, Optional
 import os
 import uuid
-import shutil
 from pathlib import Path
-from datetime import datetime
 
 from common.response import success, error
 from utils.logger import get_logger
 from core.config import settings
+from core.database import get_db
+from core.security import create_file_share_token, decode_file_share_token
+from api.deps import get_current_user
+from models.user import User
+from models.file import File as FileModel
+from schemas.file import FileAuditRecord, FileRecord, FileShareCreate, FileShareLink, FileShareRecord, FileVisibilityUpdate
+from services.file_service import FileService
+from sqlalchemy.ext.asyncio import AsyncSession
+from models.file import FileShare as FileShareModel
 
 try:
     from utils.image_processor import ImageProcessor, compress_image, create_thumbnail
@@ -43,6 +51,8 @@ except ImportError:
     OSS_AVAILABLE = False
 
 logger = get_logger(__name__)
+
+ALLOWED_VISIBILITY = {"private", "public"}
 
 # 检查功能可用性
 if not PILLOW_AVAILABLE:
@@ -124,6 +134,7 @@ async def upload_to_oss(file: UploadFile, filename: str) -> dict:
             "content_type": file.content_type,
             "size": file_size,
             "url": file_url,
+            "file_path": file_url,
             "storage": "oss"
         }
 
@@ -214,13 +225,97 @@ async def save_upload_file(file: UploadFile, destination: Path) -> int:
     return file_size
 
 
+def build_file_url(file_record: FileModel) -> str:
+    if file_record.storage == "oss":
+        return file_record.file_path
+    return f"/api/v1/files/download/{file_record.saved_filename}"
+
+
+def serialize_file_record(file_record: FileModel) -> FileRecord:
+    return FileRecord.model_validate(
+        {
+            "id": file_record.id,
+            "owner_id": file_record.owner_id,
+            "filename": file_record.filename,
+            "saved_filename": file_record.saved_filename,
+            "content_type": file_record.content_type,
+            "size": file_record.size,
+            "storage": file_record.storage,
+            "visibility": file_record.visibility,
+            "file_path": file_record.file_path,
+            "created_at": file_record.created_at,
+            "updated_at": file_record.updated_at,
+            "deleted_at": file_record.deleted_at,
+            "url": build_file_url(file_record),
+        }
+    )
+
+
+def build_share_url(token: str) -> str:
+    return f"/api/v1/files/shared/{token}"
+
+
+def normalize_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def get_share_status(share_record: FileShareModel) -> str:
+    if share_record.revoked_at is not None:
+        return "revoked"
+    if normalize_utc(share_record.expires_at) <= datetime.now(timezone.utc):
+        return "expired"
+    return "active"
+
+
+def serialize_file_share(share_record: FileShareModel) -> FileShareRecord:
+    file_record = share_record.file
+    if file_record is None:
+        raise ValueError("分享记录缺少文件关联")
+
+    status = get_share_status(share_record)
+    share_url = None
+    if status == "active":
+        token = create_file_share_token(
+            share_id=share_record.id,
+            token_id=share_record.token_id,
+            file_id=file_record.id,
+            saved_filename=file_record.saved_filename,
+            expires_at=normalize_utc(share_record.expires_at),
+        )
+        share_url = build_share_url(token)
+
+    return FileShareRecord(
+        id=share_record.id,
+        file_id=file_record.id,
+        filename=file_record.filename,
+        saved_filename=file_record.saved_filename,
+        expires_at=share_record.expires_at,
+        revoked_at=share_record.revoked_at,
+        access_count=share_record.access_count,
+        last_accessed_at=share_record.last_accessed_at,
+        created_at=share_record.created_at,
+        updated_at=share_record.updated_at,
+        status=status,
+        is_active=status == "active",
+        share_url=share_url,
+    )
+
+
+def serialize_file_audit(audit_record) -> FileAuditRecord:
+    return FileAuditRecord.model_validate(audit_record)
+
+
 # ============================================================
 # 路由端点
 # ============================================================
 
 @router.post("/upload", summary="上传单个文件")
 async def upload_file(
-    file: UploadFile = File(..., description="要上传的文件")
+    file: UploadFile = File(..., description="要上传的文件"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     上传单个文件
@@ -268,24 +363,56 @@ async def upload_file(
         if settings.OSS_ENABLED and OSS_AVAILABLE:
             logger.info("☁️  使用 OSS 存储")
             result = await upload_to_oss(file, unique_filename)
-            return success(data=result, message="文件上传成功（OSS）")
+            file_record = await FileService.create_file(
+                db,
+                owner_id=current_user.id,
+                filename=result["filename"],
+                saved_filename=result["saved_filename"],
+                content_type=result["content_type"],
+                size=result["size"],
+                storage=result["storage"],
+                file_path=result["file_path"],
+            )
+            await FileService.create_audit_log(
+                db,
+                file_id=file_record.id,
+                owner_id=current_user.id,
+                actor_user_id=current_user.id,
+                event_type="upload",
+                detail=f"上传文件 {file_record.filename}",
+            )
+            return success(data=serialize_file_record(file_record), message="文件上传成功（OSS）")
 
         # 否则保存到本地
         else:
             logger.info("💾 使用本地存储")
             file_path = UPLOAD_DIR / unique_filename
             file_size = await save_upload_file(file, file_path)
+            file_record = await FileService.create_file(
+                db,
+                owner_id=current_user.id,
+                filename=file.filename,
+                saved_filename=unique_filename,
+                content_type=file.content_type,
+                size=file_size,
+                storage="local",
+                file_path=str(file_path),
+            )
+            await FileService.create_audit_log(
+                db,
+                file_id=file_record.id,
+                owner_id=current_user.id,
+                actor_user_id=current_user.id,
+                event_type="upload",
+                detail=f"上传文件 {file_record.filename}",
+            )
 
             logger.info(f"✅ 文件保存成功: {unique_filename} ({file_size} bytes)")
 
-            return success(data={
-                "filename": file.filename,
-                "saved_filename": unique_filename,
-                "content_type": file.content_type,
-                "size": file_size,
-                "url": f"/api/v1/files/download/{unique_filename}",
-                "storage": "local"
-            }, message="文件上传成功（本地）")
+            return success(
+                data=serialize_file_record(file_record),
+                message="文件上传成功（本地）",
+            )
 
     except HTTPException:
         raise
@@ -296,7 +423,9 @@ async def upload_file(
 
 @router.post("/upload/multiple", summary="上传多个文件")
 async def upload_multiple_files(
-    files: List[UploadFile] = File(..., description="要上传的文件列表")
+    files: List[UploadFile] = File(..., description="要上传的文件列表"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     批量上传多个文件
@@ -315,7 +444,7 @@ async def upload_multiple_files(
     """
     logger.info(f"📤 收到批量文件上传请求: {len(files)} 个文件")
 
-    uploaded_files = []
+    uploaded_files: List[FileRecord] = []
     failed_files = []
 
     for file in files:
@@ -330,18 +459,43 @@ async def upload_multiple_files(
 
             # 生成唯一文件名
             unique_filename = generate_unique_filename(file.filename)
-            file_path = UPLOAD_DIR / unique_filename
 
-            # 保存文件
-            file_size = await save_upload_file(file, file_path)
+            if settings.OSS_ENABLED and OSS_AVAILABLE:
+                result = await upload_to_oss(file, unique_filename)
+                file_record = await FileService.create_file(
+                    db,
+                    owner_id=current_user.id,
+                    filename=result["filename"],
+                    saved_filename=result["saved_filename"],
+                    content_type=result["content_type"],
+                    size=result["size"],
+                    storage=result["storage"],
+                    file_path=result["file_path"],
+                )
+            else:
+                file_path = UPLOAD_DIR / unique_filename
+                file_size = await save_upload_file(file, file_path)
+                file_record = await FileService.create_file(
+                    db,
+                    owner_id=current_user.id,
+                    filename=file.filename,
+                    saved_filename=unique_filename,
+                    content_type=file.content_type,
+                    size=file_size,
+                    storage="local",
+                    file_path=str(file_path),
+                )
 
-            uploaded_files.append({
-                "filename": file.filename,
-                "saved_filename": unique_filename,
-                "content_type": file.content_type,
-                "size": file_size,
-                "url": f"/api/v1/files/download/{unique_filename}"
-            })
+            await FileService.create_audit_log(
+                db,
+                file_id=file_record.id,
+                owner_id=current_user.id,
+                actor_user_id=current_user.id,
+                event_type="upload",
+                detail=f"批量上传文件 {file_record.filename}",
+            )
+
+            uploaded_files.append(serialize_file_record(file_record))
 
             logger.info(f"✅ 文件保存成功: {unique_filename}")
 
@@ -361,8 +515,284 @@ async def upload_multiple_files(
     }, message=f"批量上传完成: 成功 {len(uploaded_files)} 个，失败 {len(failed_files)} 个")
 
 
+@router.get("/detail/{file_id}", summary="获取文件详情")
+async def get_file_detail(
+    file_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    file_record = await FileService.get_user_file_by_id(
+        db,
+        owner_id=current_user.id,
+        file_id=file_id,
+    )
+    if not file_record:
+        logger.warning(f"❌ 文件不存在或无权限查看: {file_id}")
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    return success(data=serialize_file_record(file_record))
+
+
+@router.patch("/visibility/{file_id}", summary="更新文件可见性")
+async def update_file_visibility(
+    file_id: int,
+    payload: FileVisibilityUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if payload.visibility not in ALLOWED_VISIBILITY:
+        raise HTTPException(status_code=400, detail="visibility 必须是 private 或 public")
+
+    file_record = await FileService.get_user_file_by_id(
+        db,
+        owner_id=current_user.id,
+        file_id=file_id,
+    )
+    if not file_record:
+        logger.warning(f"❌ 文件不存在或无权限修改可见性: {file_id}")
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    updated_record = await FileService.update_visibility(
+        db,
+        file_record=file_record,
+        visibility=payload.visibility,
+    )
+    await FileService.create_audit_log(
+        db,
+        file_id=updated_record.id,
+        owner_id=updated_record.owner_id,
+        actor_user_id=current_user.id,
+        event_type="visibility_updated",
+        detail=f"可见性更新为 {payload.visibility}",
+    )
+    return success(data=serialize_file_record(updated_record), message="文件可见性更新成功")
+
+
+@router.post("/share/{file_id}", summary="生成文件分享链接")
+async def create_file_share_link(
+    file_id: int,
+    payload: FileShareCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    file_record = await FileService.get_user_file_by_id(
+        db,
+        owner_id=current_user.id,
+        file_id=file_id,
+    )
+    if not file_record:
+        logger.warning(f"❌ 文件不存在或无权限分享: {file_id}")
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    expires_delta = timedelta(minutes=payload.expires_minutes)
+    expires_at = datetime.now(timezone.utc) + expires_delta
+    token_id = uuid.uuid4().hex
+    share_record = await FileService.create_file_share(
+        db,
+        file_id=file_record.id,
+        owner_id=current_user.id,
+        token_id=token_id,
+        expires_at=expires_at,
+    )
+    token = create_file_share_token(
+        share_id=share_record.id,
+        token_id=token_id,
+        file_id=file_record.id,
+        saved_filename=file_record.saved_filename,
+        expires_at=expires_at,
+    )
+
+    share_link = FileShareLink(
+        id=share_record.id,
+        file_id=file_record.id,
+        filename=file_record.filename,
+        saved_filename=file_record.saved_filename,
+        token=token,
+        share_url=build_share_url(token),
+        expires_at=expires_at,
+        status="active",
+    )
+    await FileService.create_audit_log(
+        db,
+        file_id=file_record.id,
+        owner_id=file_record.owner_id,
+        actor_user_id=current_user.id,
+        event_type="share_created",
+        detail=f"创建分享链接，{payload.expires_minutes} 分钟后过期",
+    )
+    return success(data=share_link, message="文件分享链接创建成功")
+
+
+@router.get("/shares", summary="列出当前用户的分享链接")
+async def list_file_shares(
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(10, ge=1, le=100, description="每页数量"),
+    file_id: Optional[int] = Query(None, ge=1, description="按文件ID筛选"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    share_records, total = await FileService.list_user_file_shares(
+        db,
+        owner_id=current_user.id,
+        page=page,
+        page_size=page_size,
+        file_id=file_id,
+    )
+    shares = [serialize_file_share(share_record) for share_record in share_records]
+
+    return success(data={
+        "shares": shares,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size,
+    })
+
+
+@router.delete("/share/{share_id}", summary="撤销文件分享链接")
+async def revoke_file_share_link(
+    share_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    share_record = await FileService.get_user_share_by_id(
+        db,
+        owner_id=current_user.id,
+        share_id=share_id,
+    )
+    if not share_record:
+        logger.warning(f"❌ 分享链接不存在或无权限撤销: {share_id}")
+        raise HTTPException(status_code=404, detail="分享链接不存在")
+
+    share_record = await FileService.revoke_share(
+        db,
+        share_record=share_record,
+    )
+    await FileService.create_audit_log(
+        db,
+        file_id=share_record.file_id,
+        owner_id=share_record.owner_id,
+        actor_user_id=current_user.id,
+        event_type="share_revoked",
+        detail=f"撤销分享链接 #{share_record.id}",
+    )
+    return success(data=serialize_file_share(share_record), message="文件分享链接已撤销")
+
+
+@router.get("/audit", summary="列出当前用户的文件审计日志")
+async def list_file_audit_logs(
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(10, ge=1, le=100, description="每页数量"),
+    file_id: Optional[int] = Query(None, ge=1, description="按文件ID筛选"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    audit_records, total = await FileService.list_user_audit_logs(
+        db,
+        owner_id=current_user.id,
+        page=page,
+        page_size=page_size,
+        file_id=file_id,
+    )
+    audit_logs = [serialize_file_audit(audit_record) for audit_record in audit_records]
+
+    return success(data={
+        "logs": audit_logs,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size,
+    })
+
+
+@router.get("/shared/{token}", summary="通过分享链接下载文件")
+async def download_shared_file(
+    token: str,
+    db: AsyncSession = Depends(get_db),
+):
+    payload = decode_file_share_token(token)
+    if not payload:
+        logger.warning("❌ 文件分享链接无效或已过期")
+        raise HTTPException(status_code=404, detail="分享链接无效或已过期")
+
+    share_id = payload.get("share_id")
+    token_id = payload.get("token_id")
+    file_id = payload.get("file_id")
+    saved_filename = payload.get("saved_filename")
+    if not share_id or not token_id or not file_id or not saved_filename:
+        logger.warning("❌ 文件分享链接载荷不完整")
+        raise HTTPException(status_code=404, detail="分享链接无效或已过期")
+
+    share_record = await FileService.get_share_by_id(db, share_id=int(share_id))
+    if not share_record or share_record.token_id != token_id:
+        logger.warning(f"❌ 分享链接不存在: share_id={share_id}")
+        raise HTTPException(status_code=404, detail="分享链接无效或已过期")
+
+    if get_share_status(share_record) != "active":
+        logger.warning(f"❌ 分享链接已失效: share_id={share_id}")
+        raise HTTPException(status_code=404, detail="分享链接无效或已过期")
+
+    file_record = share_record.file
+    if not file_record or file_record.id != int(file_id) or file_record.saved_filename != saved_filename:
+        logger.warning(f"❌ 分享文件不存在: file_id={file_id}")
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    await FileService.record_share_access(
+        db,
+        share_record=share_record,
+    )
+
+    if file_record.storage == "oss":
+        return RedirectResponse(url=file_record.file_path)
+
+    file_path = Path(file_record.file_path)
+    if not file_path.exists():
+        logger.warning(f"❌ 本地分享文件不存在: {saved_filename}")
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    return FileResponse(
+        path=file_path,
+        filename=file_record.filename,
+        media_type=file_record.content_type or "application/octet-stream",
+    )
+
+
+@router.get("/public/download/{filename}", summary="公开下载文件")
+async def public_download_file(
+    filename: str,
+    db: AsyncSession = Depends(get_db),
+):
+    file_record = await FileService.get_public_file_by_saved_filename(
+        db,
+        saved_filename=filename,
+    )
+    if not file_record:
+        logger.warning(f"❌ 公开文件不存在或未公开: {filename}")
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    logger.info(f"🌐 公开文件下载: {filename}")
+
+    if file_record.storage == "oss":
+        return RedirectResponse(url=file_record.file_path)
+
+    file_path = Path(file_record.file_path)
+    if not file_path.exists():
+        logger.warning(f"❌ 本地公开文件不存在: {filename}")
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    return FileResponse(
+        path=file_path,
+        filename=file_record.filename,
+        media_type=file_record.content_type or "application/octet-stream",
+    )
+
+
 @router.get("/download/{filename}", summary="下载文件")
-async def download_file(filename: str):
+async def download_file(
+    filename: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """
     下载文件（直接返回）
 
@@ -374,25 +804,39 @@ async def download_file(filename: str):
     **参数：**
     - filename: 文件名（保存时生成的唯一文件名）
     """
-    file_path = UPLOAD_DIR / filename
-
-    # 检查文件是否存在
-    if not file_path.exists():
-        logger.warning(f"❌ 文件不存在: {filename}")
+    file_record = await FileService.get_user_file_by_saved_filename(
+        db,
+        owner_id=current_user.id,
+        saved_filename=filename,
+    )
+    if not file_record:
+        logger.warning(f"❌ 文件不存在或无权限下载: {filename}")
         raise HTTPException(status_code=404, detail="文件不存在")
 
     logger.info(f"📥 文件下载: {filename}")
 
+    if file_record.storage == "oss":
+        return RedirectResponse(url=file_record.file_path)
+
+    file_path = Path(file_record.file_path)
+    if not file_path.exists():
+        logger.warning(f"❌ 本地文件不存在: {filename}")
+        raise HTTPException(status_code=404, detail="文件不存在")
+
     # 返回文件
     return FileResponse(
         path=file_path,
-        filename=filename,
-        media_type="application/octet-stream"
+        filename=file_record.filename,
+        media_type=file_record.content_type or "application/octet-stream"
     )
 
 
 @router.get("/stream/{filename}", summary="流式下载文件")
-async def stream_file(filename: str):
+async def stream_file(
+    filename: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """
     流式下载文件（适合大文件）
 
@@ -404,14 +848,24 @@ async def stream_file(filename: str):
     **参数：**
     - filename: 文件名
     """
-    file_path = UPLOAD_DIR / filename
-
-    # 检查文件是否存在
-    if not file_path.exists():
-        logger.warning(f"❌ 文件不存在: {filename}")
+    file_record = await FileService.get_user_file_by_saved_filename(
+        db,
+        owner_id=current_user.id,
+        saved_filename=filename,
+    )
+    if not file_record:
+        logger.warning(f"❌ 文件不存在或无权限流式下载: {filename}")
         raise HTTPException(status_code=404, detail="文件不存在")
 
     logger.info(f"📥 流式下载: {filename}")
+
+    if file_record.storage == "oss":
+        return RedirectResponse(url=file_record.file_path)
+
+    file_path = Path(file_record.file_path)
+    if not file_path.exists():
+        logger.warning(f"❌ 本地文件不存在: {filename}")
+        raise HTTPException(status_code=404, detail="文件不存在")
 
     # 生成文件流
     def file_iterator():
@@ -423,9 +877,9 @@ async def stream_file(filename: str):
     # 返回流式响应
     return StreamingResponse(
         file_iterator(),
-        media_type="application/octet-stream",
+        media_type=file_record.content_type or "application/octet-stream",
         headers={
-            "Content-Disposition": f"attachment; filename={filename}"
+            "Content-Disposition": f"attachment; filename={file_record.filename}"
         }
     )
 
@@ -433,7 +887,9 @@ async def stream_file(filename: str):
 @router.get("/list", summary="列出所有上传的文件")
 async def list_files(
     page: int = Query(1, ge=1, description="页码"),
-    page_size: int = Query(10, ge=1, le=100, description="每页数量")
+    page_size: int = Query(10, ge=1, le=100, description="每页数量"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     获取上传文件列表（分页）
@@ -450,27 +906,13 @@ async def list_files(
     - page_size: 每页数量
     - total_pages: 总页数
     """
-    # 获取所有文件
-    all_files = list(UPLOAD_DIR.glob("*"))
-    total = len(all_files)
-
-    # 计算分页
-    start_idx = (page - 1) * page_size
-    end_idx = start_idx + page_size
-    page_files = all_files[start_idx:end_idx]
-
-    # 构建文件列表
-    files = []
-    for file_path in page_files:
-        if file_path.is_file():
-            stat = file_path.stat()
-            files.append({
-                "filename": file_path.name,
-                "size": stat.st_size,
-                "created_at": datetime.fromtimestamp(stat.st_ctime).isoformat(),
-                "modified_at": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                "url": f"/api/v1/files/download/{file_path.name}"
-            })
+    file_records, total = await FileService.list_user_files(
+        db,
+        owner_id=current_user.id,
+        page=page,
+        page_size=page_size,
+    )
+    files = [serialize_file_record(file_record) for file_record in file_records]
 
     return success(data={
         "files": files,
@@ -482,27 +924,45 @@ async def list_files(
 
 
 @router.delete("/delete/{filename}", summary="删除文件")
-async def delete_file(filename: str):
+async def delete_file(
+    filename: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """
-    删除已上传的文件
+    删除当前用户已上传的文件
 
     **功能：**
-    - 根据文件名删除文件
-    - 从磁盘永久删除
+    - 根据文件名删除文件记录
+    - 删除当前用户拥有的本地文件
 
     **参数：**
     - filename: 文件名
     """
-    file_path = UPLOAD_DIR / filename
-
-    # 检查文件是否存在
-    if not file_path.exists():
-        logger.warning(f"❌ 文件不存在: {filename}")
+    file_record = await FileService.get_user_file_by_saved_filename(
+        db,
+        owner_id=current_user.id,
+        saved_filename=filename,
+    )
+    if not file_record:
+        logger.warning(f"❌ 文件不存在或无权限删除: {filename}")
         raise HTTPException(status_code=404, detail="文件不存在")
 
     try:
-        # 删除文件
-        os.remove(file_path)
+        if file_record.storage == "local":
+            file_path = Path(file_record.file_path)
+            if file_path.exists():
+                os.remove(file_path)
+
+        await FileService.delete_file(db, file_record)
+        await FileService.create_audit_log(
+            db,
+            file_id=file_record.id,
+            owner_id=file_record.owner_id,
+            actor_user_id=current_user.id,
+            event_type="deleted",
+            detail=f"软删除文件 {file_record.filename}",
+        )
         logger.info(f"🗑️  文件已删除: {filename}")
 
         return success(message=f"文件 {filename} 已删除")

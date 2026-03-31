@@ -130,3 +130,14 @@ async def test_register_validates_payload(client):
     assert response.status_code == 200
     assert body["code"] == ErrorCode.PARAMS_INVALID.code
     assert "errors" in body["data"]
+
+
+async def test_file_upload_requires_authentication(client):
+    response = await client.post(
+        "/api/v1/files/upload",
+        files={"file": ("hello.txt", b"hello", "text/plain")},
+    )
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["code"] == ErrorCode.UNAUTHORIZED.code

@@ -14,10 +14,13 @@
   - 数据库初始化
 """
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
+import models  # noqa: F401
 from core.config import settings
 from core.database import init_db
 from core.redis import get_redis, close_redis
@@ -30,6 +33,45 @@ from api.v1 import auth, users, tasks, files
 setup_logging()
 logger = get_logger(__name__)
 
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """
+    应用生命周期
+
+    在应用启动时初始化数据库和 Redis，
+    在应用关闭时清理连接资源。
+    """
+    logger.info("=" * 50)
+    logger.info(f"🚀 {settings.APP_NAME} v{settings.APP_VERSION} 启动中...")
+    logger.info(f"📝 调试模式: {settings.DEBUG}")
+    logger.info(f"🗄️  数据库: {settings.DATABASE_URL}")
+    logger.info(f"💾 Redis: {settings.REDIS_HOST}:{settings.REDIS_PORT}")
+    logger.info("=" * 50)
+
+    await init_db()
+    logger.info("✅ 数据库初始化完成")
+
+    try:
+        redis_client = await get_redis()
+        await redis_client.ping()
+        logger.info("✅ Redis 连接成功")
+    except Exception as exc:
+        logger.warning(f"⚠️  Redis 连接失败: {exc}")
+        logger.warning("⚠️  缓存功能将不可用")
+
+    logger.info("=" * 50)
+    logger.info("📖 API 文档: http://127.0.0.1:8080/docs")
+    logger.info("📖 ReDoc 文档: http://127.0.0.1:8080/redoc")
+    logger.info("=" * 50)
+
+    try:
+        yield
+    finally:
+        logger.info("👋 应用正在关闭...")
+        await close_redis()
+        logger.info("✅ Redis 连接已关闭")
+
+
 # 创建 FastAPI 应用
 app = FastAPI(
     title=settings.APP_NAME,
@@ -37,6 +79,7 @@ app = FastAPI(
     description=settings.APP_DESCRIPTION,
     docs_url="/docs",  # Swagger 文档地址
     redoc_url="/redoc",  # ReDoc 文档地址
+    lifespan=lifespan,
 )
 
 
@@ -95,61 +138,6 @@ app.include_router(
     prefix=f"{settings.API_V1_PREFIX}/files",
     tags=["文件上传"]
 )
-
-
-# ============================================================
-# 启动和关闭事件
-# ============================================================
-
-@app.on_event("startup")
-async def startup_event():
-    """
-    应用启动时执行
-
-    - 初始化数据库
-    - 连接 Redis
-    - 记录启动日志
-    """
-    logger.info("=" * 50)
-    logger.info(f"🚀 {settings.APP_NAME} v{settings.APP_VERSION} 启动中...")
-    logger.info(f"📝 调试模式: {settings.DEBUG}")
-    logger.info(f"🗄️  数据库: {settings.DATABASE_URL}")
-    logger.info(f"💾 Redis: {settings.REDIS_HOST}:{settings.REDIS_PORT}")
-    logger.info("=" * 50)
-
-    # 初始化数据库（创建表）
-    await init_db()
-    logger.info("✅ 数据库初始化完成")
-
-    # 连接 Redis
-    try:
-        redis_client = await get_redis()
-        await redis_client.ping()
-        logger.info("✅ Redis 连接成功")
-    except Exception as e:
-        logger.warning(f"⚠️  Redis 连接失败: {e}")
-        logger.warning("⚠️  缓存功能将不可用")
-
-    logger.info("=" * 50)
-    logger.info(f"📖 API 文档: http://127.0.0.1:8080/docs")
-    logger.info(f"📖 ReDoc 文档: http://127.0.0.1:8080/redoc")
-    logger.info("=" * 50)
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """
-    应用关闭时执行
-
-    - 关闭 Redis 连接
-    - 清理资源
-    """
-    logger.info("👋 应用正在关闭...")
-
-    # 关闭 Redis 连接
-    await close_redis()
-    logger.info("✅ Redis 连接已关闭")
-
 
 # ============================================================
 # 根路由

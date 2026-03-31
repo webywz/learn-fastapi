@@ -18,12 +18,11 @@ from pathlib import Path
 # 将项目根目录添加到 Python 路径
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-# 导入数据库配置和所有模型
 from core.database import Base
 from core.config import settings
 
 # 重要: 必须导入所有模型，否则 autogenerate 检测不到
-from models.user import User
+import models  # noqa: F401
 
 # 设置 target_metadata 为 Base.metadata
 # 这样 Alembic 才能自动检测模型变化

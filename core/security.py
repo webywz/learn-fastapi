@@ -17,7 +17,7 @@
   - JWT：类似 localStorage.getItem('token')
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Any
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -173,10 +173,10 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
     # 设置过期时间
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
         # 使用默认过期时间
-        expire = datetime.utcnow() + timedelta(
+        expire = datetime.now(timezone.utc) + timedelta(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
 
@@ -234,6 +234,48 @@ def decode_access_token(token: str) -> Optional[dict]:
         return payload
     except JWTError:
         # Token 无效或过期
+        return None
+
+
+def create_file_share_token(
+    *,
+    share_id: int,
+    token_id: str,
+    file_id: int,
+    saved_filename: str,
+    expires_at: datetime,
+) -> str:
+    """
+    创建文件分享令牌
+
+    这是一个限时有效的签名链接令牌，不需要额外落库。
+    """
+    expire = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+    payload = {
+        "type": "file_share",
+        "share_id": share_id,
+        "token_id": token_id,
+        "file_id": file_id,
+        "saved_filename": saved_filename,
+        "exp": expire,
+    }
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def decode_file_share_token(token: str) -> Optional[dict]:
+    """
+    解码文件分享令牌
+    """
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+        )
+        if payload.get("type") != "file_share":
+            return None
+        return payload
+    except JWTError:
         return None
 
 
