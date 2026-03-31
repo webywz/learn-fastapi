@@ -18,7 +18,7 @@
   - React: process.env.REACT_APP_API_URL
 """
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 from functools import lru_cache
 
@@ -486,17 +486,11 @@ class Settings(BaseSettings):
     # Pydantic 配置
     # =========================================
 
-    class Config:
-        """
-        Pydantic 配置类
-
-        env_file: 从哪个文件读取环境变量
-        env_file_encoding: 文件编码
-        case_sensitive: 环境变量是否区分大小写
-        """
-        env_file = ".env"  # 读取项目根目录的 .env 文件
-        env_file_encoding = "utf-8"
-        case_sensitive = True  # 环境变量名区分大小写
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+    )
 
 
 # ============================================================

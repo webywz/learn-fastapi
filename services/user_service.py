@@ -25,18 +25,16 @@ from schemas.user import UserCreate, UserUpdate
 from core.security import hash_password, verify_password
 from common.exceptions import BusinessException
 from common.error_codes import ErrorCode
-from utils.cache import cache, cache_invalidate, CacheManager
-from core.redis import redis_cache
+from utils.cache import cache_invalidate
 
 
 class UserService:
     """用户服务类"""
 
     @staticmethod
-    @cache(ttl=600, key_prefix="user")
     async def get_user_by_id(db: AsyncSession, user_id: int) -> Optional[User]:
         """
-        根据 ID 获取用户（带缓存）
+        根据 ID 获取用户
 
         参数:
             db: 数据库会话
@@ -45,12 +43,6 @@ class UserService:
         返回:
             User: 用户对象
             None: 用户不存在
-
-        缓存策略:
-            - 缓存时间: 10 分钟
-            - 缓存键: user:get_user_by_id:{user_id}
-            - 第一次查询从数据库读取，结果缓存
-            - 10 分钟内再次查询直接从 Redis 返回
         """
         result = await db.execute(select(User).where(User.id == user_id))
         return result.scalar_one_or_none()

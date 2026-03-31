@@ -133,14 +133,14 @@ python main.py
 或者使用 uvicorn：
 
 ```bash
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn main:app --reload --host 0.0.0.0 --port 8080
 ```
 
 ### 6. 访问 API 文档
 
 打开浏览器访问：
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+- Swagger UI: http://localhost:8080/docs
+- ReDoc: http://localhost:8080/redoc
 
 ---
 
@@ -149,7 +149,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ### 1. 用户注册
 
 ```bash
-POST http://localhost:8000/api/v1/auth/register
+POST http://localhost:8080/api/v1/auth/register
 Content-Type: application/json
 
 {
@@ -179,7 +179,7 @@ Content-Type: application/json
 ### 2. 用户登录
 
 ```bash
-POST http://localhost:8000/api/v1/auth/login
+POST http://localhost:8080/api/v1/auth/login
 Content-Type: application/json
 
 {
@@ -203,7 +203,7 @@ Content-Type: application/json
 ### 3. 获取当前用户信息（需要登录）
 
 ```bash
-GET http://localhost:8000/api/v1/users/me
+GET http://localhost:8080/api/v1/users/me
 Authorization: Bearer <token>
 ```
 

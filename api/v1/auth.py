@@ -53,7 +53,7 @@ async def register(
     user = await UserService.create_user(db, user_data)
 
     # 返回成功响应
-    return success(data=UserSchema.from_orm(user), message="注册成功")
+    return success(data=UserSchema.model_validate(user), message="注册成功")
 
 
 @router.post("/login", summary="用户登录")

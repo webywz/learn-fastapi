@@ -24,6 +24,9 @@ import hashlib
 import json
 from core.redis import redis_cache
 from core.config import settings
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def cache(
@@ -79,7 +82,11 @@ def cache(
                 cache_key = _build_cache_key(func, key_prefix, args, kwargs)
 
             # 尝试从缓存获取
-            cached_value = await redis_cache.get(cache_key)
+            try:
+                cached_value = await redis_cache.get(cache_key)
+            except Exception as exc:
+                logger.warning(f"缓存读取失败，回退到直连逻辑: key={cache_key}, error={exc}")
+                cached_value = None
             if cached_value is not None:
                 return cached_value
 
@@ -88,7 +95,10 @@ def cache(
 
             # 存入缓存
             cache_ttl = ttl if ttl is not None else settings.REDIS_CACHE_TTL
-            await redis_cache.set(cache_key, result, ttl=cache_ttl)
+            try:
+                await redis_cache.set(cache_key, result, ttl=cache_ttl)
+            except Exception as exc:
+                logger.warning(f"缓存写入失败，跳过缓存: key={cache_key}, error={exc}")
 
             return result
 
@@ -105,7 +115,10 @@ def cache(
             else:
                 cache_key = _build_cache_key(func, key_prefix, args, kwargs)
 
-            await redis_cache.delete(cache_key)
+            try:
+                await redis_cache.delete(cache_key)
+            except Exception as exc:
+                logger.warning(f"缓存删除失败，忽略: key={cache_key}, error={exc}")
 
         wrapper.clear_cache = clear_cache
 
@@ -200,7 +213,10 @@ def cache_invalidate(key_pattern: str):
                 pattern = pattern.format(**kwargs)
 
             # 删除匹配的缓存
-            await redis_cache.delete_pattern(pattern)
+            try:
+                await redis_cache.delete_pattern(pattern)
+            except Exception as exc:
+                logger.warning(f"缓存失效失败，忽略: pattern={pattern}, error={exc}")
 
             return result
 

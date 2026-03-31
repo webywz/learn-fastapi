@@ -18,7 +18,7 @@
 """
 
 from typing import Optional, Any, Generic, TypeVar
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ============================================================
@@ -95,18 +95,15 @@ class ResponseModel(BaseModel, Generic[T]):
         description="实际业务数据"
     )
 
-    class Config:
-        """
-        Pydantic 配置类
-        json_schema_extra: 在 OpenAPI 文档中显示示例
-        """
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "code": 0,
                 "message": "success",
-                "data": {"id": 1, "username": "zhangsan"}
+                "data": {"id": 1, "username": "zhangsan"},
             }
         }
+    )
 
 
 # ============================================================
@@ -171,19 +168,20 @@ class PageData(BaseModel, Generic[T]):
         description="总页数"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "items": [
                     {"id": 1, "username": "user1"},
-                    {"id": 2, "username": "user2"}
+                    {"id": 2, "username": "user2"},
                 ],
                 "total": 100,
                 "page": 1,
                 "page_size": 10,
-                "total_pages": 10
+                "total_pages": 10,
             }
         }
+    )
 
 
 # ============================================================

@@ -58,7 +58,7 @@ async def business_exception_handler(request: Request, exc: BusinessException) -
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,  # 业务错误也返回 200
-        content=response.dict()
+        content=response.model_dump()
     )
 
 
@@ -96,7 +96,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,
-        content=response.dict()
+        content=response.model_dump()
     )
 
 
@@ -136,7 +136,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,
-        content=response.dict()
+        content=response.model_dump()
     )
 
 
@@ -168,7 +168,7 @@ async def database_exception_handler(request: Request, exc: SQLAlchemyError) -> 
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,
-        content=response.dict()
+        content=response.model_dump()
     )
 
 
@@ -200,7 +200,7 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,
-        content=response.dict()
+        content=response.model_dump()
     )
 
 

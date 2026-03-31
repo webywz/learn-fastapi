@@ -43,7 +43,7 @@ async def get_current_user_info(
             }
         }
     """
-    return success(data=UserSchema.from_orm(current_user))
+    return success(data=UserSchema.model_validate(current_user))
 
 
 @router.put("/me", summary="更新当前用户信息")
@@ -77,7 +77,7 @@ async def update_current_user_info(
     # 更新用户信息
     updated_user = await UserService.update_user(db, current_user, user_data)
 
-    return success(data=UserSchema.from_orm(updated_user), message="更新成功")
+    return success(data=UserSchema.model_validate(updated_user), message="更新成功")
 
 
 @router.get("/{user_id}", summary="根据ID获取用户信息")
@@ -111,4 +111,4 @@ async def get_user_by_id(
             message=f"用户 ID {user_id} 不存在"
         )
 
-    return success(data=UserSchema.from_orm(user))
+    return success(data=UserSchema.model_validate(user))
