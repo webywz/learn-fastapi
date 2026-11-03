@@ -1,7 +1,7 @@
 # FastAPI 后续学习路线图
 
 > 本文档记录了已完成的学习内容和待学习的技术点
-> 最后更新：2026-11-03
+> 最后更新：2026-11-03（分片上传已落地）
 
 ---
 
@@ -26,6 +26,7 @@
 - [x] Server-Sent Events（SSE 心跳 / 进度 / 频道，见 `api/v1/sse.py`、`docs/sse-guide.md`）
 - [x] 分页（offset/limit + cursor，见 `core/pagination.py`、`docs/pagination-guide.md`）
 - [x] 邮件发送（aiosmtplib + Jinja2 模板，见 `services/email_service.py`、`docs/email-guide.md`）
+- [x] 大文件分片上传（见 `services/chunked_upload_service.py`、`docs/chunked-upload-guide.md`）
 
 ---
 
@@ -39,7 +40,7 @@
 **学习内容**：
 - [x] pytest 框架基础（`pytest.ini`、`tests/`）
 - [x] 单元测试（Service：`tests/test_user_service.py`）
-- [x] 集成测试（API：auth / files / sse / pagination / email）
+- [x] 集成测试（API：auth / files / chunked-upload / sse / pagination / email）
 - [x] 测试数据库（httpx AsyncClient + SQLite fixture）
 - [x] Fixture（`tests/conftest.py`）
 - [ ] 测试覆盖率（`pytest-cov` 已在 `requirements-dev.txt`，CI 尚未跑 `--cov`）
@@ -65,7 +66,7 @@
 - [x] 云存储（阿里云 OSS 指南已有，可按环境启用）
 - [x] 图片处理（Pillow：压缩、裁剪、水印）
 - [x] 文件下载（流式传输）
-- [ ] 大文件分片上传
+- [x] 大文件分片上传（init / part / complete / abort，本地磁盘 + SHA-256；OSS Multipart 仍可选）
 - [x] 文件 URL 签名（分享链接）
 
 **为什么重要**：
@@ -439,4 +440,4 @@
 
 ---
 
-**下一步**：WebSocket 双向实时通信（SSE 已覆盖单向推送），或把邮件演示接到真正的注册验证 / 忘记密码。查询优化（索引 / N+1 / Query Builder）和 SendGrid 等第三方邮件 API 仍可选。
+**下一步**：WebSocket 双向实时通信（SSE 已覆盖单向推送），或把邮件演示接到真正的注册验证 / 忘记密码。查询优化（索引 / N+1 / Query Builder）、SendGrid 等第三方邮件 API、OSS Multipart 仍可选。

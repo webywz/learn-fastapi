@@ -48,6 +48,7 @@
 - 分页、搜索、过滤（offset/limit + cursor，见 `docs/pagination-guide.md`）
 - Server-Sent Events（SSE 服务端推送）
 - 邮件发送（aiosmtplib + Jinja2 模板，见 `docs/email-guide.md`）
+- 大文件分片上传（init / 分片 / 完成 / 续传，见 `docs/chunked-upload-guide.md`）
 
 ---
 
@@ -77,15 +78,18 @@ backend-tutorial/
 │       ├── auth.py         # 认证接口（注册、登录）⭐
 │       ├── users.py        # 用户接口 ⭐
 │       ├── files.py        # 文件上传 / 分享 ⭐
+│       ├── chunked_uploads.py  # 大文件分片上传 ⭐
 │       ├── sse.py          # SSE 服务端推送 ⭐
 │       └── email.py        # 邮件演示接口 ⭐
 ├── docs/
 │   ├── sse-guide.md        # SSE 学习指南
 │   ├── pagination-guide.md # 分页学习指南 ⭐
-│   └── email-guide.md      # 邮件发送学习指南 ⭐
+│   ├── email-guide.md      # 邮件发送学习指南 ⭐
+│   └── chunked-upload-guide.md  # 分片上传学习指南 ⭐
 ├── services/                # 业务逻辑层
 │   ├── user_service.py     # 用户服务 ⭐
-│   └── email_service.py    # SMTP / 模板 / 附件 ⭐
+│   ├── email_service.py    # SMTP / 模板 / 附件 ⭐
+│   └── chunked_upload_service.py  # 分片会话 / 校验 / 拼片 ⭐
 ├── templates/email/         # Jinja2 邮件模板（HTML + 纯文本）
 ├── utils/                   # 工具函数
 │   └── logger.py           # 日志配置 ⭐
@@ -349,6 +353,16 @@ Authorization: Bearer <token>
 - 没配 `SMTP_HOST` 时 dry-run；Celery 可选，Broker 挂了回退同步
 - 欢迎 / 验证 / 重置是演示，不会改用户表或密码
 
+### 第十一步：大文件分片上传
+
+阅读文件：`services/chunked_upload_service.py`、`api/v1/chunked_uploads.py`、`docs/chunked-upload-guide.md`
+
+**关键概念：**
+- 为什么整文件一次 POST 会超时 / 占内存 / 失败重来
+- init → PUT 分片 → complete / abort（对标 S3 Multipart）
+- 单片和整文件 SHA-256；同一片再传是幂等的
+- 临时目录拼好后 `os.replace` 到 `uploads/`，不替换 `POST /upload`
+
 ---
 
 ## 💡 核心知识点详解
@@ -517,6 +531,7 @@ async def get_me(current_user: User = Depends(get_current_user)):
 - [ ] 完整忘记密码（校验 token、改哈希）
 - [ ] 角色和权限管理（RBAC）
 - [x] 文件上传
+- [x] 大文件分片上传（见 `docs/chunked-upload-guide.md`）
 - [x] 分页（offset / cursor，见 `docs/pagination-guide.md`）
 - [x] Server-Sent Events（见 `docs/sse-guide.md`）
 - [ ] Refresh Token

@@ -79,6 +79,15 @@ class ErrorCode(Enum):
     EMAIL_TEMPLATE_NOT_FOUND = (40500, "邮件模板不存在")
     EMAIL_PAYLOAD_INVALID = (40501, "邮件内容不完整")
 
+    # 分片上传（406xx）
+    CHUNK_UPLOAD_INVALID = (40600, "分片上传参数无效")
+    CHUNK_UPLOAD_NOT_FOUND = (40601, "分片上传会话不存在")
+    CHUNK_CHECKSUM_MISMATCH = (40602, "文件校验和不匹配")
+    CHUNK_UPLOAD_INCOMPLETE = (40603, "分片尚未传齐")
+    CHUNK_UPLOAD_EXPIRED = (40604, "分片上传会话已过期")
+    CHUNK_UPLOAD_ABORTED = (40605, "分片上传已取消")
+    CHUNK_UPLOAD_CONFLICT = (40606, "分片上传状态不允许此操作")
+
     # =========================================
     # 401xx - 认证相关错误（登录、token）
     # =========================================

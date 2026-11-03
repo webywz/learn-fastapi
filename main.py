@@ -27,7 +27,7 @@ from core.redis import get_redis, close_redis
 from utils.logger import setup_logging, get_logger
 from middleware.logger import log_requests_middleware
 from middleware.error_handler import register_exception_handlers
-from api.v1 import auth, users, tasks, files, sse, email as email_api
+from api.v1 import auth, users, tasks, files, sse, email as email_api, chunked_uploads
 
 # 初始化日志
 setup_logging()
@@ -132,9 +132,16 @@ app.include_router(
     tags=["任务"]
 )
 
-# 文件上传路由
+# 文件上传路由（单次上传 / 下载 / 分享 / 图片处理）
 app.include_router(
     files.router,
+    prefix=f"{settings.API_V1_PREFIX}/files",
+    tags=["文件上传"]
+)
+
+# 大文件分片上传（同一前缀，不替换 POST /upload）
+app.include_router(
+    chunked_uploads.router,
     prefix=f"{settings.API_V1_PREFIX}/files",
     tags=["文件上传"]
 )
