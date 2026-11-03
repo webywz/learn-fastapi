@@ -480,7 +480,42 @@ class Settings(BaseSettings):
     """
 
     MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024
-    """文件上传大小限制（字节）- 默认 10 MB"""
+    """
+    单次上传大小限制（字节）- 默认 10 MB
+
+    POST /api/v1/files/upload 走这条。
+    更大的文件请用分片上传（CHUNKED_MAX_FILE_SIZE）。
+    """
+
+    CHUNKED_MAX_FILE_SIZE: int = 100 * 1024 * 1024
+    """
+    分片上传允许的整文件上限（字节）- 默认 100 MB
+
+    为什么单次 10MB、分片 100MB？
+      一次 PUT 整文件会长时间占着 worker，Nginx / 反向代理也容易超时。
+      切开之后：失败只重传一片，还可以断点续传。
+    这是教学上限，不是硬盘配额。生产按带宽和磁盘再调。
+    """
+
+    CHUNKED_DEFAULT_CHUNK_SIZE: int = 1 * 1024 * 1024
+    """
+    客户端没指定 chunk_size 时的默认分片大小（1 MB）
+
+    生产常见 5–8 MB（接近 S3 的习惯）。教学默认 1 MB，
+    方便用几十字节的假文件在 pytest 里演示「多片」。
+    """
+
+    CHUNKED_MAX_CHUNK_SIZE: int = 5 * 1024 * 1024
+    """单片上限（字节）- 默认 5 MB。单片太大就失去分片的意义。"""
+
+    CHUNKED_SESSION_TTL_SECONDS: int = 24 * 60 * 60
+    """
+    分片会话过期时间（秒）- 默认 24 小时
+
+    用户中途关掉浏览器，临时目录会占磁盘。
+    过期后：访问会话会标 expired 并删临时目录；
+    每次 init / cleanup 也会顺手扫一遍。
+    """
 
     # =========================================
     # SMTP / 邮件配置

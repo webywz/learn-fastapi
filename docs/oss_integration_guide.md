@@ -533,7 +533,7 @@ for file in files:
 
 - ✅ OSS 基础集成
 - ⏭️ 图片处理后上传 OSS
-- ⏭️ 大文件分片上传
+- ✅ 本地大文件分片上传（见 `docs/chunked-upload-guide.md`；OSS Multipart 仍未接）
 - ⏭️ 视频转码和处理
 - ⏭️ CDN 加速配置
 

@@ -78,6 +78,10 @@ python main.py
 | POST | `/api/v1/files/upload` | 上传单个文件 |
 | POST | `/api/v1/files/upload/multiple` | 批量上传文件 |
 | GET | `/api/v1/files/list` | 获取文件列表（分页） |
+| POST | `/api/v1/files/chunked/init` | 初始化分片上传 |
+| PUT | `/api/v1/files/chunked/{upload_id}/parts/{n}` | 上传一个分片 |
+| POST | `/api/v1/files/chunked/{upload_id}/complete` | 完成分片并写入文件表 |
+| DELETE | `/api/v1/files/chunked/{upload_id}` | 取消分片上传 |
 
 ### 文件下载
 
@@ -581,9 +585,9 @@ print(f"水印版: /api/v1/files/download/{watermarked_file}")
 
 ## 下一步学习
 
-- ⏭️ 云存储集成（阿里云 OSS / AWS S3）
-- ⏭️ 大文件分片上传
-- ⏭️ 文件 URL 签名（防盗链）
+- ✅ 大文件分片上传（见 `docs/chunked-upload-guide.md`）
+- ✅ 文件分享链接（签名 URL）
+- ⏭️ 云存储 OSS Multipart（和本地分片状态机类似，未接 SDK）
 - ⏭️ 图片 CDN 加速
 - ⏭️ 异步处理和队列
 

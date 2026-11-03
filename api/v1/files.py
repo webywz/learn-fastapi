@@ -10,6 +10,7 @@
   - 本地存储
   - 文件下载
   - 多文件上传
+  - 大文件分片上传见 api/v1/chunked_uploads.py（不替换本文件的单次上传）
 
 学习目标：
   - FastAPI UploadFile 的使用
@@ -1391,8 +1392,8 @@ async def create_thumbnail_api(
 - ✅ 文件类型验证
 - ✅ 文件大小限制
 - ✅ 本地存储
-- ⏭️  云存储（阿里云 OSS / AWS S3）
-- ⏭️  图片处理（Pillow）
-- ⏭️  大文件分片上传
-- ⏭️  文件 URL 签名
+- ✅ 云存储指南（阿里云 OSS，按环境启用）
+- ✅ 图片处理（Pillow）
+- ✅ 大文件分片上传（见 api/v1/chunked_uploads.py、docs/chunked-upload-guide.md）
+- ✅ 文件 URL 签名（分享链接）
 """

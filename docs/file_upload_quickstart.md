@@ -16,10 +16,12 @@
 - [x] 添加文字水印
 - [x] 生成缩略图
 
+### ✅ 分片上传
+- [x] 大文件分片上传（init / part / complete / abort，见 `docs/chunked-upload-guide.md`）
+- [x] 文件 URL 签名（分享链接，不是 CDN 防盗链）
+
 ### ⏭️ 待实现功能
-- [ ] 云存储集成（阿里云 OSS / AWS S3）
-- [ ] 大文件分片上传
-- [ ] 文件 URL 签名（防盗链）
+- [ ] 云存储集成（阿里云 OSS 指南已有，可按环境启用；OSS Multipart 未接）
 
 ---
 
