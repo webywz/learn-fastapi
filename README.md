@@ -46,6 +46,7 @@
 - Pydantic 数据验证
 - 自动生成 API 文档
 - 分页、搜索、过滤
+- Server-Sent Events（SSE 服务端推送）
 
 ---
 
@@ -72,7 +73,9 @@ backend-tutorial/
 │   ├── deps.py             # 依赖注入 ⭐
 │   └── v1/
 │       ├── auth.py         # 认证接口（注册、登录）⭐
-│       └── users.py        # 用户接口 ⭐
+│       ├── users.py        # 用户接口 ⭐
+│       ├── files.py        # 文件上传 / 分享 ⭐
+│       └── sse.py          # SSE 服务端推送 ⭐
 ├── services/                # 业务逻辑层
 │   └── user_service.py     # 用户服务 ⭐
 ├── utils/                   # 工具函数
@@ -288,6 +291,15 @@ Authorization: Bearer <token>
 - RESTful API 设计
 - CRUD 操作
 
+### 第八步：SSE 服务端推送
+
+阅读文件：`api/v1/sse.py`、`docs/sse-guide.md`
+
+**关键概念：**
+- SSE vs 轮询 vs WebSocket
+- `StreamingResponse` 与 `text/event-stream`
+- 客户端断开和 `Last-Event-ID` 续传
+
 ---
 
 ## 💡 核心知识点详解
@@ -454,12 +466,13 @@ async def get_me(current_user: User = Depends(get_current_user)):
 - [ ] 邮箱验证
 - [ ] 忘记密码
 - [ ] 角色和权限管理（RBAC）
-- [ ] 文件上传
+- [x] 文件上传
+- [x] Server-Sent Events（见 `docs/sse-guide.md`）
 - [ ] Refresh Token
 - [ ] 接口限流
-- [ ] 数据缓存（Redis）
-- [ ] 单元测试
-- [ ] Docker 部署
+- [x] 数据缓存（Redis）
+- [x] 单元测试 / API 集成测试
+- [x] Docker 部署
 
 ---
 

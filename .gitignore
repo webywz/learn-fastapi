@@ -54,5 +54,8 @@ logs/
 .coverage
 htmlcov/
 
+# 本地/测试运行产生的上传文件（不要把 data/uploads 垃圾提交上去）
+data/uploads/*
+
 # Alembic
 alembic/versions/*.pyc
