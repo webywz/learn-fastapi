@@ -75,6 +75,10 @@ class ErrorCode(Enum):
     OPERATION_FAILED = (40200, "操作失败")
     DUPLICATE_OPERATION = (40201, "重复操作")
 
+    # 邮件相关（客户端可处理的）
+    EMAIL_TEMPLATE_NOT_FOUND = (40500, "邮件模板不存在")
+    EMAIL_PAYLOAD_INVALID = (40501, "邮件内容不完整")
+
     # =========================================
     # 401xx - 认证相关错误（登录、token）
     # =========================================
@@ -106,6 +110,7 @@ class ErrorCode(Enum):
     DATABASE_ERROR = (50001, "数据库错误")
     NETWORK_ERROR = (50002, "网络错误")
     THIRD_PARTY_ERROR = (50003, "第三方服务错误")
+    EMAIL_SEND_FAILED = (50004, "邮件发送失败")
 
     def __init__(self, code: int, message: str):
         """

@@ -27,7 +27,7 @@ from core.redis import get_redis, close_redis
 from utils.logger import setup_logging, get_logger
 from middleware.logger import log_requests_middleware
 from middleware.error_handler import register_exception_handlers
-from api.v1 import auth, users, tasks, files, sse
+from api.v1 import auth, users, tasks, files, sse, email as email_api
 
 # 初始化日志
 setup_logging()
@@ -144,6 +144,13 @@ app.include_router(
     sse.router,
     prefix=f"{settings.API_V1_PREFIX}/sse",
     tags=["SSE"]
+)
+
+# 邮件发送（SMTP + Jinja2 模板；Broker 不可用时同步可测）
+app.include_router(
+    email_api.router,
+    prefix=f"{settings.API_V1_PREFIX}/email",
+    tags=["邮件"]
 )
 
 # ============================================================

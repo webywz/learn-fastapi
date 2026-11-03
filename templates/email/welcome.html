@@ -1,0 +1,24 @@
+{# subject: 欢迎加入 #}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>欢迎加入 {{ app_name }}</title>
+</head>
+<body style="margin:0;padding:24px;background:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1d1d1f;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;">
+    <tr>
+      <td style="padding:28px 32px;">
+        <p style="margin:0 0 8px;font-size:13px;color:#6e6e73;">{{ app_name }}</p>
+        <h1 style="margin:0 0 16px;font-size:22px;">欢迎加入，{{ username }}</h1>
+        <p style="margin:0 0 12px;line-height:1.6;">你的账号已经创建成功。这是一封<strong>教学用欢迎邮件</strong>：HTML 走 Jinja2 渲染，下面同时有一份纯文本 fallback。</p>
+        <p style="margin:0 0 20px;line-height:1.6;">接下来可以去验证邮箱，或直接开始浏览接口文档。</p>
+        <p style="margin:0 0 24px;">
+          <a href="{{ verify_url }}" style="display:inline-block;padding:10px 18px;background:#1d4ed8;color:#ffffff;text-decoration:none;border-radius:8px;">验证邮箱（演示链接）</a>
+        </p>
+        <p style="margin:0;font-size:12px;color:#6e6e73;">如果按钮不能点，复制这行到浏览器：<br>{{ verify_url }}</p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

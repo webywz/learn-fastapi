@@ -25,6 +25,7 @@
 - [x] pytest 基础、Service 单测、API 集成测试、SQLite 测试库
 - [x] Server-Sent Events（SSE 心跳 / 进度 / 频道，见 `api/v1/sse.py`、`docs/sse-guide.md`）
 - [x] 分页（offset/limit + cursor，见 `core/pagination.py`、`docs/pagination-guide.md`）
+- [x] 邮件发送（aiosmtplib + Jinja2 模板，见 `services/email_service.py`、`docs/email-guide.md`）
 
 ---
 
@@ -38,12 +39,12 @@
 **学习内容**：
 - [x] pytest 框架基础（`pytest.ini`、`tests/`）
 - [x] 单元测试（Service：`tests/test_user_service.py`）
-- [x] 集成测试（API：auth / files / sse / pagination）
+- [x] 集成测试（API：auth / files / sse / pagination / email）
 - [x] 测试数据库（httpx AsyncClient + SQLite fixture）
 - [x] Fixture（`tests/conftest.py`）
 - [ ] 测试覆盖率（`pytest-cov` 已在 `requirements-dev.txt`，CI 尚未跑 `--cov`）
 - [x] 异步测试（`pytest-asyncio`，`asyncio_mode = auto`）
-- [ ] Mock 外部依赖的系统化练习（OSS / SMTP 等）
+- [x] Mock 外部依赖（SMTP：`tests/test_email_service.py`；OSS 仍可选）
 
 **为什么重要**：
 - 保证代码质量
@@ -99,21 +100,21 @@
 > 用户通知、密码重置
 
 **学习内容**：
-- [ ] SMTP 服务器配置
-- [ ] 使用 aiosmtplib 异步发送
-- [ ] HTML 邮件模板（Jinja2）
-- [ ] 邮件附件
-- [ ] 邮件队列（Celery 集成）
-- [ ] 发送失败重试
-- [ ] 邮件日志记录
-- [ ] 第三方邮件服务（SendGrid、阿里云邮件推送）
+- [x] SMTP 服务器配置（环境变量，`SMTP_*`）
+- [x] 使用 aiosmtplib 异步发送（`services/email_service.py`）
+- [x] HTML 邮件模板（Jinja2，欢迎 / 验证 / 重置密码 + 纯文本 fallback）
+- [x] 邮件附件（运行时生成 txt / 最小 PDF，不入库）
+- [x] 邮件队列（Celery 包装同一套服务；Broker 挂了回退同步）
+- [x] 发送失败重试（服务层秒级 + Celery 分钟级；5xx / 认证不重试）
+- [x] 邮件日志记录（不打印密码）
+- [ ] 第三方邮件服务（SendGrid、阿里云邮件推送）——仍可选，不是 SMTP
 
 **为什么重要**：
 - 用户注册验证
 - 密码重置
 - 系统通知
 
-**备注**：Celery 邮件任务已学，但实际 SMTP 配置未实现
+**备注**：SMTP 教学路径已落地（含 dry-run 与 mock）。欢迎 / 验证 / 重置是演示接口，**不会**改用户表或密码。完整「邮箱验证」「忘记密码」业务流、以及 SendGrid 等 HTTP 供应商仍是可选作业。详见 `docs/email-guide.md`。
 
 ---
 
@@ -438,4 +439,4 @@
 
 ---
 
-**下一步**：邮件发送（实际 SMTP），或 WebSocket 双向实时通信（SSE 已覆盖单向推送）。查询优化（索引 / N+1 / Query Builder）仍可继续往下挖。
+**下一步**：WebSocket 双向实时通信（SSE 已覆盖单向推送），或把邮件演示接到真正的注册验证 / 忘记密码。查询优化（索引 / N+1 / Query Builder）和 SendGrid 等第三方邮件 API 仍可选。
