@@ -84,6 +84,11 @@ services:
       # Celery 配置
       - CELERY_BROKER_URL=redis://:root@redis:6379/0
       - CELERY_RESULT_BACKEND=redis://:root@redis:6379/0
+
+      # SMTP 可选。不配则邮件接口 dry-run，不连外网。
+      # - SMTP_HOST=mailpit
+      # - SMTP_PORT=1025
+      # - SMTP_STARTTLS=False
     depends_on:
       - redis
     networks:

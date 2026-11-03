@@ -483,6 +483,112 @@ class Settings(BaseSettings):
     """文件上传大小限制（字节）- 默认 10 MB"""
 
     # =========================================
+    # SMTP / 邮件配置
+    # =========================================
+    #
+    # 教学约定（和 SSE 的 Redis 回退同一思路）：
+    #   - 没配 SMTP_HOST：走 dry-run，只渲染/组包/打日志，不连外网
+    #   - 配了 SMTP_HOST：用 aiosmtplib 真发
+    #   - SMTP_DRY_RUN=True：即使配了 host 也不发（本地预览）
+    # CI 默认不配 host，pytest 全程离线。
+
+    SMTP_HOST: str = ""
+    """
+    SMTP 服务器地址
+
+    常见值:
+      - smtp.gmail.com
+      - smtp.qq.com
+      - smtp.exmail.qq.com
+      - localhost（本机 Mailhog / Mailpit）
+
+    留空 = 自动 dry-run，不连真实 SMTP。
+    环境变量: export SMTP_HOST="smtp.gmail.com"
+    """
+
+    SMTP_PORT: int = 587
+    """
+    SMTP 端口
+
+    常见组合:
+      - 587 + SMTP_STARTTLS=True  （提交后升级 TLS，最常见）
+      - 465 + SMTP_USE_TLS=True   （隐式 TLS）
+      - 1025 + 两者都 False       （Mailhog / Mailpit 本地抓信）
+    """
+
+    SMTP_USER: Optional[str] = None
+    """SMTP 登录用户名。本机 Mailpit 通常不需要。"""
+
+    SMTP_PASSWORD: Optional[str] = None
+    """
+    SMTP 密码 / 应用专用密码
+
+    ⚠️ 敏感信息，只放环境变量，不要写进仓库。
+    Gmail / QQ 邮箱一般不能用登录密码，要开「应用专用密码」。
+    """
+
+    SMTP_FROM: str = "FastAPI Tutorial <noreply@example.com>"
+    """
+    默认发件人（From）
+
+    可以是纯地址，也可以是「显示名 <addr@host>」。
+    很多 SMTP 要求 From 的地址属于登录账号，否则会被拒。
+    """
+
+    SMTP_STARTTLS: bool = True
+    """
+    是否在明文连接后执行 STARTTLS（端口 587 常用）
+
+    和 SMTP_USE_TLS 不要同时为 True：
+      - STARTTLS: 先连 587，再升级
+      - USE_TLS:  一开始就走 TLS（465）
+    """
+
+    SMTP_USE_TLS: bool = False
+    """是否使用隐式 TLS（端口 465）。"""
+
+    SMTP_TIMEOUT: float = 15.0
+    """单次 SMTP 连接 / 发送超时（秒）。"""
+
+    SMTP_DRY_RUN: bool = False
+    """
+    强制空发
+
+    True: 即使配了 SMTP_HOST 也不连服务器，只记录日志。
+    本地改模板、看预览时很有用。
+    """
+
+    SMTP_MAX_RETRIES: int = 2
+    """
+    服务层额外重试次数（不含第一次）
+
+    和 Celery 的 max_retries 是两层：
+      - 这里：同一次请求里，网络闪断立刻再试（秒级）
+      - Celery：Worker 挂了 / 连续失败，任务重新入队（分钟级）
+    """
+
+    SMTP_RETRY_BACKOFF: float = 0.4
+    """服务层重试的基础等待秒数，实际等待 = backoff * 尝试次数。"""
+
+    EMAIL_FRONTEND_BASE_URL: str = "https://example.com"
+    """
+    邮件里链接的前端根地址
+
+    验证邮箱 / 重置密码的 URL 会拼在这后面。
+    教学默认 example.com；接真实前端时改成你的站点。
+    """
+
+    @property
+    def SMTP_CONFIGURED(self) -> bool:
+        """是否配置了可连接的 SMTP 主机。"""
+        return bool(self.SMTP_HOST and self.SMTP_HOST.strip())
+
+    @property
+    def SMTP_SHOULD_DRY_RUN(self) -> bool:
+        """没配主机，或显式打开 dry-run，都不连真实 SMTP。"""
+        return self.SMTP_DRY_RUN or not self.SMTP_CONFIGURED
+
+    # =========================================
     # Pydantic 配置
     # =========================================
 

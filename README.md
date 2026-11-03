@@ -47,6 +47,7 @@
 - 自动生成 API 文档
 - 分页、搜索、过滤（offset/limit + cursor，见 `docs/pagination-guide.md`）
 - Server-Sent Events（SSE 服务端推送）
+- 邮件发送（aiosmtplib + Jinja2 模板，见 `docs/email-guide.md`）
 
 ---
 
@@ -76,12 +77,16 @@ backend-tutorial/
 │       ├── auth.py         # 认证接口（注册、登录）⭐
 │       ├── users.py        # 用户接口 ⭐
 │       ├── files.py        # 文件上传 / 分享 ⭐
-│       └── sse.py          # SSE 服务端推送 ⭐
+│       ├── sse.py          # SSE 服务端推送 ⭐
+│       └── email.py        # 邮件演示接口 ⭐
 ├── docs/
 │   ├── sse-guide.md        # SSE 学习指南
-│   └── pagination-guide.md # 分页学习指南 ⭐
+│   ├── pagination-guide.md # 分页学习指南 ⭐
+│   └── email-guide.md      # 邮件发送学习指南 ⭐
 ├── services/                # 业务逻辑层
-│   └── user_service.py     # 用户服务 ⭐
+│   ├── user_service.py     # 用户服务 ⭐
+│   └── email_service.py    # SMTP / 模板 / 附件 ⭐
+├── templates/email/         # Jinja2 邮件模板（HTML + 纯文本）
 ├── utils/                   # 工具函数
 │   └── logger.py           # 日志配置 ⭐
 ├── logs/                    # 日志文件目录
@@ -334,6 +339,16 @@ Authorization: Bearer <token>
 - `COUNT(*)` 的代价：表格要总数，信息流只要 `has_next`
 - 增量字段兼容旧客户端（文件列表仍返回 `files` / `total`）
 
+### 第十步：邮件发送
+
+阅读文件：`services/email_service.py`、`api/v1/email.py`、`docs/email-guide.md`
+
+**关键概念：**
+- `aiosmtplib` 异步 SMTP（不要在 FastAPI 里用同步 `smtplib`）
+- Jinja2 HTML + 纯文本 fallback
+- 没配 `SMTP_HOST` 时 dry-run；Celery 可选，Broker 挂了回退同步
+- 欢迎 / 验证 / 重置是演示，不会改用户表或密码
+
 ---
 
 ## 💡 核心知识点详解
@@ -497,8 +512,9 @@ async def get_me(current_user: User = Depends(get_current_user)):
 
 以下功能你可以自己尝试实现：
 
-- [ ] 邮箱验证
-- [ ] 忘记密码
+- [x] 邮件发送演示（SMTP + 模板 + 附件，见 `docs/email-guide.md`）
+- [ ] 完整邮箱验证（写库 / 一次性 token）
+- [ ] 完整忘记密码（校验 token、改哈希）
 - [ ] 角色和权限管理（RBAC）
 - [x] 文件上传
 - [x] 分页（offset / cursor，见 `docs/pagination-guide.md`）

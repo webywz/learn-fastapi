@@ -67,7 +67,11 @@ class TaskResponse(BaseModel):
 
 
 # ============================================================
-# 邮件任务 API
+# 邮件任务 API（只演示「丢给 Celery」）
+#
+# 真发送 / 模板 / 附件 / Broker 回退见 /api/v1/email/*
+# 和 services/email_service.py。这里的 .delay() 在 Redis
+# 没开时会失败，这是刻意对比，不是回归。
 # ============================================================
 
 @router.post("/email/send", tags=["任务-邮件"], summary="发送邮件", description="异步发送邮件，立即返回任务ID，不阻塞API响应")
