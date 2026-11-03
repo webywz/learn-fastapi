@@ -1,7 +1,7 @@
 # FastAPI 后续学习路线图
 
 > 本文档记录了已完成的学习内容和待学习的技术点
-> 最后更新：2025-12-25
+> 最后更新：2026-11-03
 
 ---
 
@@ -21,24 +21,28 @@
 - [x] Nginx 反向代理和负载均衡
 - [x] 中间件（CORS、日志、错误处理）
 - [x] 配置管理（环境变量）
+- [x] 文件上传、分享链接和审计（见 `api/v1/files.py`）
+- [x] pytest 基础、Service 单测、API 集成测试、SQLite 测试库
+- [x] Server-Sent Events（SSE 心跳 / 进度 / 频道，见 `api/v1/sse.py`、`docs/sse-guide.md`）
 
 ---
 
 ## 🎯 待学习内容（按优先级排序）
 
 ### 🔴 **第一优先级（核心必学）**
-Server-Sent Events (SSE)
+
 #### 1. 测试（Testing）⭐⭐⭐⭐⭐
-> 从 Demo 到工程化项目的必经之路
+> 从 Demo 到工程化项目的必经之路。仓库里已经有 `tests/` + GitHub Actions `pytest`。
 
 **学习内容**：
-- [ ] pytest 框架基础
-- [ ] 单元测试（Service、Utils）
-- [ ] 集成测试（API 接口）
-- [ ] 测试数据库（TestClient + SQLite）
-- [ ] Mock 和 Fixture
-- [ ] 测试覆盖率（pytest-cov）
-- [ ] 异步测试（pytest-asyncio）
+- [x] pytest 框架基础（`pytest.ini`、`tests/`）
+- [x] 单元测试（Service：`tests/test_user_service.py`）
+- [x] 集成测试（API：auth / files / sse）
+- [x] 测试数据库（httpx AsyncClient + SQLite fixture）
+- [x] Fixture（`tests/conftest.py`）
+- [ ] 测试覆盖率（`pytest-cov` 已在 `requirements-dev.txt`，CI 尚未跑 `--cov`）
+- [x] 异步测试（`pytest-asyncio`，`asyncio_mode = auto`）
+- [ ] Mock 外部依赖的系统化练习（OSS / SMTP 等）
 
 **为什么重要**：
 - 保证代码质量
@@ -52,15 +56,15 @@ Server-Sent Events (SSE)
 > 几乎所有项目都需要
 
 **学习内容**：
-- [ ] FastAPI 文件上传（UploadFile）
-- [ ] 文件类型验证（MIME type）
-- [ ] 文件大小限制
-- [ ] 本地存储（保存到磁盘）
-- [ ] 云存储（阿里云 OSS / AWS S3）
-- [ ] 图片处理（Pillow：压缩、裁剪、水印）
-- [ ] 文件下载（流式传输）
+- [x] FastAPI 文件上传（UploadFile）
+- [x] 文件类型验证（MIME type）
+- [x] 文件大小限制
+- [x] 本地存储（保存到磁盘）
+- [x] 云存储（阿里云 OSS 指南已有，可按环境启用）
+- [x] 图片处理（Pillow：压缩、裁剪、水印）
+- [x] 文件下载（流式传输）
 - [ ] 大文件分片上传
-- [ ] 文件 URL 签名（防盗链）
+- [x] 文件 URL 签名（分享链接）
 
 **为什么重要**：
 - 用户头像上传
@@ -109,6 +113,25 @@ Server-Sent Events (SSE)
 - 系统通知
 
 **备注**：Celery 邮件任务已学，但实际 SMTP 配置未实现
+
+---
+
+#### 4.5 Server-Sent Events (SSE) ⭐⭐⭐⭐
+> 单向实时推送。已作为教学模块落地，详见 `docs/sse-guide.md`。
+
+**学习内容**：
+- [x] SSE vs WebSocket vs 轮询
+- [x] `StreamingResponse` + `text/event-stream`
+- [x] `event` / `data` / `id` / `retry` 字段
+- [x] 客户端断开（`is_disconnected` / `CancelledError`）
+- [x] 心跳计数流、假进度任务流
+- [x] Redis Pub/Sub 可选增强（Redis 不可用时内存回退）
+- [x] httpx 流式集成测试 + Nginx 关闭缓冲
+
+**为什么重要**：
+- 任务进度、通知、日志、AI 输出
+- 比轮询省请求，比 WebSocket 更简单
+- 面试常拿来和 WebSocket 对比
 
 ---
 
@@ -414,4 +437,4 @@ Server-Sent Events (SSE)
 
 ---
 
-**下一步**：从"测试（Testing）"开始，这是最重要且最基础的技能！
+**下一步**：分页和查询优化，或 WebSocket 双向实时通信（SSE 已覆盖单向推送）。

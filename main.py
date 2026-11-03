@@ -27,7 +27,7 @@ from core.redis import get_redis, close_redis
 from utils.logger import setup_logging, get_logger
 from middleware.logger import log_requests_middleware
 from middleware.error_handler import register_exception_handlers
-from api.v1 import auth, users, tasks, files
+from api.v1 import auth, users, tasks, files, sse
 
 # 初始化日志
 setup_logging()
@@ -137,6 +137,13 @@ app.include_router(
     files.router,
     prefix=f"{settings.API_V1_PREFIX}/files",
     tags=["文件上传"]
+)
+
+# SSE 服务端推送（教学演示：心跳、进度、频道）
+app.include_router(
+    sse.router,
+    prefix=f"{settings.API_V1_PREFIX}/sse",
+    tags=["SSE"]
 )
 
 # ============================================================
