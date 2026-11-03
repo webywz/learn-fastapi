@@ -22,6 +22,7 @@ from typing import Optional
 
 from models.user import User
 from schemas.user import UserCreate, UserUpdate
+from core.pagination import ListParams, PaginatedPage, paginate
 from core.security import hash_password, verify_password
 from common.exceptions import BusinessException
 from common.error_codes import ErrorCode
@@ -58,6 +59,38 @@ class UserService:
         """根据邮箱获取用户"""
         result = await db.execute(select(User).where(User.email == email))
         return result.scalar_one_or_none()
+
+    @staticmethod
+    async def list_users(
+        db: AsyncSession,
+        params: ListParams,
+        *,
+        include_total: bool = True,
+    ) -> PaginatedPage[User]:
+        """
+        分页列出用户。
+
+        排序用主键 id 降序：
+          - 新注册的用户排在前面
+          - 游标只需要 {"id": 上一条的 id}，实现最简单
+          - 教学时先理解「按稳定字段排序」，再看文件列表的 created_at + id
+
+        优化笔记：
+          - 这里 select(User) 会取出整行。用户表字段少，够用
+          - 真要减载荷可以用 load_only(User.id, User.username, User.email, ...)
+          - COUNT(*) 对用户表通常可接受；百万行时游标模式可传 include_total=False
+        """
+        stmt = select(User).order_by(User.id.desc())
+        return await paginate(
+            db,
+            stmt,
+            params=params,
+            id_column=User.id,
+            sort_column=User.id,
+            sort_field="id",
+            descending=True,
+            include_total=include_total,
+        )
 
     @staticmethod
     async def create_user(db: AsyncSession, user_data: UserCreate) -> User:

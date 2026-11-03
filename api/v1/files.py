@@ -29,6 +29,7 @@ from common.response import success, error
 from utils.logger import get_logger
 from core.config import settings
 from core.database import get_db
+from core.pagination import ListParams, get_list_params
 from core.security import create_file_share_token, decode_file_share_token
 from api.deps import get_current_user
 from models.user import User
@@ -886,41 +887,41 @@ async def stream_file(
 
 @router.get("/list", summary="列出所有上传的文件")
 async def list_files(
-    page: int = Query(1, ge=1, description="页码"),
-    page_size: int = Query(10, ge=1, le=100, description="每页数量"),
+    params: ListParams = Depends(get_list_params),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
     获取上传文件列表（分页）
 
+    **兼容说明（additive，不破坏旧客户端）：**
+    - 旧参数 page / page_size 仍然可用，默认 1 / 10
+    - 旧字段 files / total / page / page_size / total_pages 都保留
+    - 新增可选 query：cursor（传入后走游标分页，忽略 page）
+    - 新增响应字段：has_next / has_prev / next_cursor / mode
+
     **功能：**
-    - 列出所有已上传的文件
-    - 支持分页
-    - 显示文件基本信息
+    - 只列出当前登录用户自己的文件
+    - 默认 offset/limit（页码），适合后台表格
+    - 可选 cursor，适合「加载更多」
 
     **返回数据：**
     - files: 文件列表
-    - total: 总文件数
-    - page: 当前页码
-    - page_size: 每页数量
-    - total_pages: 总页数
+    - total: 总文件数（兼容旧客户端，两种模式都算）
+    - page / page_size / total_pages: 页码信息
+    - has_next / has_prev / next_cursor / mode: 增量字段
     """
-    file_records, total = await FileService.list_user_files(
+    logger.info(
+        f"列出文件: user={current_user.id} mode={params.mode} "
+        f"page={params.page} page_size={params.page_size}"
+    )
+    page_result = await FileService.list_user_files(
         db,
         owner_id=current_user.id,
-        page=page,
-        page_size=page_size,
+        params=params,
     )
-    files = [serialize_file_record(file_record) for file_record in file_records]
-
-    return success(data={
-        "files": files,
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "total_pages": (total + page_size - 1) // page_size
-    })
+    files = [serialize_file_record(file_record) for file_record in page_result.items]
+    return success(data=page_result.as_dict(items=files, items_key="files"))
 
 
 @router.delete("/delete/{filename}", summary="删除文件")

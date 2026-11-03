@@ -24,6 +24,7 @@
 - [x] 文件上传、分享链接和审计（见 `api/v1/files.py`）
 - [x] pytest 基础、Service 单测、API 集成测试、SQLite 测试库
 - [x] Server-Sent Events（SSE 心跳 / 进度 / 频道，见 `api/v1/sse.py`、`docs/sse-guide.md`）
+- [x] 分页（offset/limit + cursor，见 `core/pagination.py`、`docs/pagination-guide.md`）
 
 ---
 
@@ -37,7 +38,7 @@
 **学习内容**：
 - [x] pytest 框架基础（`pytest.ini`、`tests/`）
 - [x] 单元测试（Service：`tests/test_user_service.py`）
-- [x] 集成测试（API：auth / files / sse）
+- [x] 集成测试（API：auth / files / sse / pagination）
 - [x] 测试数据库（httpx AsyncClient + SQLite fixture）
 - [x] Fixture（`tests/conftest.py`）
 - [ ] 测试覆盖率（`pytest-cov` 已在 `requirements-dev.txt`，CI 尚未跑 `--cov`）
@@ -78,14 +79,14 @@
 > 性能优化基础
 
 **学习内容**：
-- [ ] 分页实现（offset/limit）
-- [ ] 游标分页（cursor-based）
-- [ ] 查询优化（select 指定字段）
-- [ ] N+1 问题识别和解决
+- [x] 分页实现（offset/limit，`core/pagination.py` + 文件/用户列表）
+- [x] 游标分页（cursor-based，`next_cursor` / `INVALID_CURSOR`）
+- [ ] 查询优化（select 指定字段；指南里点到 `load_only`，未改默认查询）
+- [ ] N+1 问题识别和解决（分享列表已用 `selectinload`，尚未单独成课）
 - [ ] 索引优化（创建、使用、分析）
-- [ ] 预加载（joinedload, selectinload）
+- [x] 预加载（`selectinload` 已用在 `FileService.list_user_file_shares`）
 - [ ] 查询构建器（动态过滤、排序）
-- [ ] 分页组件封装
+- [x] 分页组件封装（`ListParams` / `paginate` / `success_with_page`）
 
 **为什么重要**：
 - 列表接口必备
@@ -437,4 +438,4 @@
 
 ---
 
-**下一步**：分页和查询优化，或 WebSocket 双向实时通信（SSE 已覆盖单向推送）。
+**下一步**：邮件发送（实际 SMTP），或 WebSocket 双向实时通信（SSE 已覆盖单向推送）。查询优化（索引 / N+1 / Query Builder）仍可继续往下挖。

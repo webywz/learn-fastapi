@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from core.pagination import ListParams, PaginatedPage, apply_offset, compute_offset, paginate
 from models.file import File, FileAuditLog, FileShare
 
 
@@ -44,22 +45,39 @@ class FileService:
         db: AsyncSession,
         *,
         owner_id: int,
-        page: int,
-        page_size: int,
-    ) -> Tuple[Sequence[File], int]:
-        conditions = [File.owner_id == owner_id, *FileService._active_file_filters()]
-        total_stmt = select(func.count()).select_from(File).where(*conditions)
-        total = await db.scalar(total_stmt) or 0
+        params: ListParams,
+        include_total: bool = True,
+    ) -> PaginatedPage[File]:
+        """
+        分页列出当前用户的文件。
 
+        排序用主键 id 降序（新上传的 id 更大，排在前面）。
+
+        为什么不按 created_at + id 做复合游标？
+          SQLite 把 DateTime 存成字符串，isoformat 和驱动绑定的格式
+          对不齐时，`<` / `=` 会把整页数据又查回来。
+          自增 id 是整数比较，SQLite / PostgreSQL 都稳。
+          生产环境如果必须按业务时间排，请用真正的时间类型（PostgreSQL
+          timestamptz）再做成 (created_at, id) 复合游标。
+
+        include_total 默认 True：旧客户端已经依赖 data.total。
+        """
+        conditions = [File.owner_id == owner_id, *FileService._active_file_filters()]
         stmt = (
             select(File)
             .where(*conditions)
-            .order_by(File.created_at.desc(), File.id.desc())
-            .offset((page - 1) * page_size)
-            .limit(page_size)
+            .order_by(File.id.desc())
         )
-        result = await db.execute(stmt)
-        return result.scalars().all(), total
+        return await paginate(
+            db,
+            stmt,
+            params=params,
+            id_column=File.id,
+            sort_column=File.id,
+            sort_field="id",
+            descending=True,
+            include_total=include_total,
+        )
 
     @staticmethod
     async def get_user_file_by_saved_filename(
@@ -179,13 +197,14 @@ class FileService:
         total_stmt = select(func.count()).select_from(FileShare).where(*conditions)
         total = await db.scalar(total_stmt) or 0
 
-        stmt = (
+        # selectinload：先查分享，再一次性把关联文件取回来，避免循环里 N+1
+        stmt = apply_offset(
             select(FileShare)
             .options(selectinload(FileShare.file))
             .where(*conditions)
-            .order_by(FileShare.created_at.desc(), FileShare.id.desc())
-            .offset((page - 1) * page_size)
-            .limit(page_size)
+            .order_by(FileShare.created_at.desc(), FileShare.id.desc()),
+            compute_offset(page, page_size),
+            page_size,
         )
         result = await db.execute(stmt)
         return result.scalars().all(), total
@@ -287,12 +306,12 @@ class FileService:
         total_stmt = select(func.count()).select_from(FileAuditLog).where(*conditions)
         total = await db.scalar(total_stmt) or 0
 
-        stmt = (
+        stmt = apply_offset(
             select(FileAuditLog)
             .where(*conditions)
-            .order_by(FileAuditLog.created_at.desc(), FileAuditLog.id.desc())
-            .offset((page - 1) * page_size)
-            .limit(page_size)
+            .order_by(FileAuditLog.created_at.desc(), FileAuditLog.id.desc()),
+            compute_offset(page, page_size),
+            page_size,
         )
         result = await db.execute(stmt)
         return result.scalars().all(), total

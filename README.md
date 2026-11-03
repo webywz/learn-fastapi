@@ -45,7 +45,7 @@
 - RESTful API 设计
 - Pydantic 数据验证
 - 自动生成 API 文档
-- 分页、搜索、过滤
+- 分页、搜索、过滤（offset/limit + cursor，见 `docs/pagination-guide.md`）
 - Server-Sent Events（SSE 服务端推送）
 
 ---
@@ -61,6 +61,7 @@ backend-tutorial/
 ├── core/                    # 核心配置
 │   ├── config.py           # 配置文件 ⭐
 │   ├── database.py         # 数据库配置 ⭐
+│   ├── pagination.py       # 分页助手（offset / cursor）⭐
 │   └── security.py         # 安全模块（密码、JWT）⭐
 ├── middleware/              # 中间件
 │   ├── logger.py           # 请求日志中间件 ⭐
@@ -76,6 +77,9 @@ backend-tutorial/
 │       ├── users.py        # 用户接口 ⭐
 │       ├── files.py        # 文件上传 / 分享 ⭐
 │       └── sse.py          # SSE 服务端推送 ⭐
+├── docs/
+│   ├── sse-guide.md        # SSE 学习指南
+│   └── pagination-guide.md # 分页学习指南 ⭐
 ├── services/                # 业务逻辑层
 │   └── user_service.py     # 用户服务 ⭐
 ├── utils/                   # 工具函数
@@ -203,7 +207,28 @@ Content-Type: application/json
 }
 ```
 
-### 3. 获取当前用户信息（需要登录）
+### 3. 分页列出用户（需要登录）
+
+```bash
+GET http://localhost:8080/api/v1/users?page=1&page_size=10
+Authorization: Bearer <token>
+```
+
+默认是页码分页。把上一页返回的 `next_cursor` 再传回去，就改成游标分页：
+
+```bash
+GET http://localhost:8080/api/v1/users?page_size=10&cursor=<next_cursor>
+```
+
+文件列表同样支持这组参数，旧字段 `files` / `total` 仍然保留：
+
+```bash
+GET http://localhost:8080/api/v1/files/list?page=1&page_size=10
+```
+
+详见 `docs/pagination-guide.md`。
+
+### 4. 获取当前用户信息（需要登录）
 
 ```bash
 GET http://localhost:8080/api/v1/users/me
@@ -299,6 +324,15 @@ Authorization: Bearer <token>
 - SSE vs 轮询 vs WebSocket
 - `StreamingResponse` 与 `text/event-stream`
 - 客户端断开和 `Last-Event-ID` 续传
+
+### 第九步：列表分页
+
+阅读文件：`core/pagination.py`、`docs/pagination-guide.md`
+
+**关键概念：**
+- offset/limit（页码）vs cursor（游标）
+- `COUNT(*)` 的代价：表格要总数，信息流只要 `has_next`
+- 增量字段兼容旧客户端（文件列表仍返回 `files` / `total`）
 
 ---
 
@@ -467,6 +501,7 @@ async def get_me(current_user: User = Depends(get_current_user)):
 - [ ] 忘记密码
 - [ ] 角色和权限管理（RBAC）
 - [x] 文件上传
+- [x] 分页（offset / cursor，见 `docs/pagination-guide.md`）
 - [x] Server-Sent Events（见 `docs/sse-guide.md`）
 - [ ] Refresh Token
 - [ ] 接口限流
