@@ -11,13 +11,16 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
+from core.pagination import ListParams, get_list_params
 from api.deps import get_current_user
 from schemas.user import User as UserSchema, UserUpdate
 from services.user_service import UserService
 from models.user import User
-from common.response import success
+from common.response import success, success_with_page
+from utils.logger import get_logger
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 
 @router.get("/me", summary="获取当前用户信息")
@@ -78,6 +81,48 @@ async def update_current_user_info(
     updated_user = await UserService.update_user(db, current_user, user_data)
 
     return success(data=UserSchema.model_validate(updated_user), message="更新成功")
+
+
+@router.get("", summary="分页列出用户")
+async def list_users(
+    params: ListParams = Depends(get_list_params),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    分页列出用户（需要登录）
+
+    这是分页助手接到「真实列表接口」上的示范，不是单独的 demo 路由。
+
+    Query 参数（都是可选，默认兼容旧习惯）：
+      - page: 页码，从 1 开始（默认 1）
+      - page_size: 每页条数，1-100（默认 10）
+      - cursor: 游标。传入后改为游标分页，忽略 page
+
+    响应形状（统一信封 + PageData）：
+      data.items / total / page / page_size / total_pages
+      以及增量字段 has_next / has_prev / next_cursor / mode
+
+    请求示例:
+        GET /api/v1/users?page=1&page_size=10
+        GET /api/v1/users?page_size=10&cursor=<上一页的 next_cursor>
+    """
+    logger.info(
+        f"列出用户: requester={current_user.id} mode={params.mode} "
+        f"page={params.page} page_size={params.page_size}"
+    )
+    page_result = await UserService.list_users(db, params)
+    items = [UserSchema.model_validate(user) for user in page_result.items]
+    return success_with_page(
+        items=items,
+        total=page_result.total or 0,
+        page=page_result.page,
+        page_size=page_result.page_size,
+        has_next=page_result.has_next,
+        has_prev=page_result.has_prev,
+        next_cursor=page_result.next_cursor,
+        mode=page_result.mode,
+    )
 
 
 @router.get("/{user_id}", summary="根据ID获取用户信息")

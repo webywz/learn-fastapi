@@ -69,6 +69,7 @@ class ErrorCode(Enum):
     PARAMS_INVALID = (40100, "参数验证失败")
     PARAMS_MISSING = (40101, "缺少必需参数")
     PARAMS_TYPE_ERROR = (40102, "参数类型错误")
+    INVALID_CURSOR = (40103, "分页游标无效")
 
     # 业务逻辑错误 (402xx)
     OPERATION_FAILED = (40200, "操作失败")

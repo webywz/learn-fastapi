@@ -168,6 +168,26 @@ class PageData(BaseModel, Generic[T]):
         description="总页数"
     )
 
+    has_next: bool = Field(
+        default=False,
+        description="是否还有下一页（offset 和 cursor 都用这个字段）",
+    )
+
+    has_prev: bool = Field(
+        default=False,
+        description="是否还有上一页",
+    )
+
+    next_cursor: Optional[str] = Field(
+        default=None,
+        description="下一页游标。offset 模式为 null；cursor 模式有下一页时才有值",
+    )
+
+    mode: str = Field(
+        default="offset",
+        description="分页模式：offset 或 cursor",
+    )
+
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -179,6 +199,10 @@ class PageData(BaseModel, Generic[T]):
                 "page": 1,
                 "page_size": 10,
                 "total_pages": 10,
+                "has_next": True,
+                "has_prev": False,
+                "next_cursor": None,
+                "mode": "offset",
             }
         }
     )
@@ -253,7 +277,11 @@ def success_with_page(
     total: int,
     page: int = 1,
     page_size: int = 10,
-    message: str = "success"
+    message: str = "success",
+    has_next: Optional[bool] = None,
+    has_prev: Optional[bool] = None,
+    next_cursor: Optional[str] = None,
+    mode: str = "offset",
 ) -> ResponseModel[PageData]:
     """
     分页成功响应的快捷方法
@@ -305,7 +333,12 @@ def success_with_page(
     """
     # 计算总页数（向上取整）
     # 比如：total=95, page_size=10 => total_pages=10
-    total_pages = (total + page_size - 1) // page_size
+    total_pages = (total + page_size - 1) // page_size if page_size else 0
+
+    if has_next is None:
+        has_next = page * page_size < total
+    if has_prev is None:
+        has_prev = page > 1
 
     # 构建分页数据对象
     page_data = PageData(
@@ -313,7 +346,11 @@ def success_with_page(
         total=total,
         page=page,
         page_size=page_size,
-        total_pages=total_pages
+        total_pages=total_pages,
+        has_next=has_next,
+        has_prev=has_prev,
+        next_cursor=next_cursor,
+        mode=mode,
     )
 
     # 返回包含分页数据的响应
